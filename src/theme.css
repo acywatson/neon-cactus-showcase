@@ -1,0 +1,312 @@
+@layer game-template {
+  :root {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-width: 20rem;
+    background:
+      radial-gradient(circle at 72% 18%, var(--game-pink-glow), transparent 24rem),
+      radial-gradient(circle at 18% 32%, var(--game-glow), transparent 28rem),
+      var(--game-night);
+  }
+
+  body::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    content: '';
+    opacity: 0.24;
+    background-image:
+      linear-gradient(var(--game-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--game-grid) 1px, transparent 1px);
+    background-size: var(--spacing-10) var(--spacing-10);
+    mask-image: linear-gradient(to bottom, transparent, black 20%, transparent 78%);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .skip-link {
+    position: fixed;
+    inset-block-start: var(--spacing-2);
+    inset-inline-start: var(--spacing-2);
+    z-index: 100;
+    padding: var(--spacing-3) var(--spacing-4);
+    border-radius: var(--radius-element);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    transform: translateY(-150%);
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
+  .site-header {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: center;
+    border-block-end: var(--border-width) solid var(--color-border);
+    background: var(--game-panel);
+    backdrop-filter: blur(var(--spacing-3));
+  }
+
+  .wordmark {
+    display: grid;
+    gap: var(--spacing-0-5);
+    color: var(--color-text-primary);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+  }
+
+  .wordmark strong {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+  }
+
+  .wordmark small {
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-code);
+    font-size: var(--font-size-xs);
+  }
+
+  .hero-section,
+  .content-section {
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero-section {
+    min-height: min(54rem, calc(100dvh - var(--spacing-12)));
+    align-items: center;
+    padding-block: var(--spacing-10);
+    overflow: clip;
+  }
+
+  .hero-section > .astryx-section,
+  .content-section > .astryx-section {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .hero-section > .astryx-section > .astryx-grid {
+    width: 100%;
+    max-width: 77.5rem;
+  }
+
+  .hero-synopsis {
+    max-width: 42rem;
+    font-size: var(--font-size-lg);
+    line-height: 1.7;
+  }
+
+  .hero-art {
+    position: relative;
+    margin: 0;
+    filter: drop-shadow(0 var(--spacing-6) var(--spacing-10) var(--game-pink-glow));
+    transform: rotate(1.2deg);
+  }
+
+  .hero-art::before {
+    position: absolute;
+    inset: -2%;
+    z-index: -1;
+    content: '';
+    border: var(--border-width) solid var(--game-cyan);
+    transform: rotate(-2.4deg);
+    box-shadow: 0 0 var(--spacing-8) var(--game-glow);
+  }
+
+  .hero-art svg {
+    display: block;
+    width: 100%;
+    max-height: 44rem;
+    border: var(--border-width) solid var(--color-border-emphasized);
+    background: var(--game-night-raised);
+  }
+
+  .sky-top { stop-color: var(--game-violet); }
+  .sky-bottom { stop-color: var(--game-night); }
+  .sun-start { stop-color: var(--game-amber); }
+  .sun-end { stop-color: var(--game-pink); }
+  .sky-scan { stroke: var(--game-night); stroke-width: 12; opacity: 0.56; }
+  .far-city { fill: var(--game-night-raised); opacity: 0.72; }
+  .near-city { fill: var(--game-ink); }
+  .road { fill: var(--game-night-raised); }
+  .road-line { fill: none; stroke: var(--game-cyan); stroke-width: 5; opacity: 0.7; }
+  .cactus { fill: var(--game-green); stroke: var(--game-cyan); stroke-width: 3; filter: url('#glow'); }
+  .cactus-two { opacity: 0.72; }
+  .runner-coat, .runner-hat, .runner-arm { fill: var(--game-ink); stroke: var(--game-pink); stroke-width: 4; }
+  .runner-head { fill: var(--game-amber); }
+  .runner-gun { fill: var(--color-text-primary); }
+  .runner-cyan { fill: var(--game-cyan); }
+  .neon-sign { fill: var(--game-night); stroke: var(--game-cyan); stroke-width: 6; }
+  .neon-copy { fill: var(--game-cyan); font-family: var(--font-family-heading); font-size: 38px; letter-spacing: 0.08em; }
+  .neon-copy-alt { fill: var(--game-pink); font-size: 26px; }
+  .rain { fill: none; stroke: var(--game-cyan-soft); stroke-width: 3; opacity: 0.28; }
+
+  .ticker {
+    display: flex;
+    justify-content: space-around;
+    gap: var(--spacing-8);
+    overflow: hidden;
+    padding: var(--spacing-3) var(--spacing-4);
+    border-block: var(--border-width) solid var(--game-pink);
+    background: var(--game-pink);
+    color: var(--game-ink);
+    white-space: nowrap;
+  }
+
+  .content-section {
+    padding-block: calc(var(--spacing-12) * 2);
+  }
+
+  .content-section > .astryx-section > .astryx-stack {
+    margin-inline: auto;
+  }
+
+  .character-section {
+    padding-block: 0;
+  }
+
+  .character-card {
+    position: relative;
+    display: grid;
+    min-height: 22rem;
+    align-content: end;
+    gap: var(--spacing-3);
+    overflow: hidden;
+    padding: var(--spacing-8);
+    border: var(--border-width) solid var(--color-border-emphasized);
+    background:
+      linear-gradient(to top, var(--game-night) 12%, transparent 80%),
+      radial-gradient(circle at 70% 20%, var(--character-color), transparent 50%),
+      var(--game-night-raised);
+    clip-path: polygon(0 0, 94% 0, 100% 9%, 100% 100%, 0 100%);
+  }
+
+  .character-card::before {
+    position: absolute;
+    inset-block-start: var(--spacing-6);
+    inset-inline-end: var(--spacing-6);
+    width: 9rem;
+    height: 9rem;
+    content: '';
+    border: var(--spacing-2) solid var(--character-color);
+    border-radius: var(--radius-full);
+    box-shadow: 0 0 var(--spacing-10) var(--character-color);
+    opacity: 0.28;
+  }
+
+  .character-cyan { --character-color: var(--game-cyan); }
+  .character-pink { --character-color: var(--game-pink); }
+  .character-green { --character-color: var(--game-green); }
+  .character-orange { --character-color: var(--game-amber); }
+
+  .demo-section {
+    background: linear-gradient(to bottom, transparent, var(--game-night-raised), transparent);
+  }
+
+  .game-canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-block: var(--border-width) solid var(--color-border-emphasized);
+    outline: none;
+  }
+
+  .game-canvas:focus-visible {
+    box-shadow: inset 0 0 0 var(--focus-outline-width) var(--focus-outline-color);
+  }
+
+  .jump-icon {
+    transform: rotate(-90deg);
+  }
+
+  .error-copy {
+    color: var(--color-error);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .room-code {
+    color: var(--game-cyan);
+    font-family: var(--font-family-code);
+    letter-spacing: 0.32em;
+    text-shadow: 0 0 var(--spacing-4) var(--game-glow);
+  }
+
+  .final-cta {
+    display: flex;
+    justify-content: center;
+    padding: calc(var(--spacing-12) * 2) var(--spacing-4);
+    border-block: var(--border-width) solid var(--color-border);
+    background:
+      radial-gradient(circle at center, var(--game-pink-glow), transparent 60%),
+      var(--game-night-raised);
+  }
+
+  .center-copy {
+    text-align: center;
+  }
+
+  .site-footer {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-8) var(--spacing-4);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 48rem) {
+    .site-header nav .astryx-link {
+      display: none;
+    }
+
+    .hero-section {
+      padding-block-start: var(--spacing-6);
+    }
+
+    .hero-art {
+      order: -1;
+      transform: none;
+    }
+
+    .ticker {
+      justify-content: flex-start;
+    }
+
+    .content-section {
+      padding-block: var(--spacing-12);
+    }
+
+    .character-card {
+      min-height: 18rem;
+      padding: var(--spacing-6);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { scroll-behavior: auto; }
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
