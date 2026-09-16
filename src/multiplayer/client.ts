@@ -16,8 +16,11 @@ type ServerMessage =
   | {type: 'error'; code: string; message: string};
 
 const configuredUrl = import.meta.env.VITE_GAME_SERVER_URL as string | undefined;
+const isMultiplayerEnabled =
+  import.meta.env.VITE_MULTIPLAYER_ENABLED === 'true';
 
 function multiplayerUrl(): string | undefined {
+  if (!isMultiplayerEnabled) return undefined;
   if (configuredUrl && !configuredUrl.includes('example.')) return configuredUrl;
   if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

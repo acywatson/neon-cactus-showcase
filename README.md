@@ -4,6 +4,8 @@ A cyberpunk-western cooperative side-scrolling shooter showcase built from the s
 
 > This repository contains the game-specific identity and serves as the template’s reference implementation. The reusable workshop submission remains a separate repository and does not depend on Neon Cactus assets.
 
+**Play it:** https://d1e12v0y5me1gp.cloudfront.net
+
 ## Pitch
 
 The sun never rises over Shinjuku Mesa. Ride into a neon frontier with up to four chrome-plated outlaws, collect impossible bounties, and shoot through the syndicate that owns the night.
