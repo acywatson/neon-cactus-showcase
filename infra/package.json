@@ -6,6 +6,8 @@
     "build": "tsc --noEmit",
     "synth": "cdk synth",
     "deploy": "cdk deploy --require-approval never",
+    "deploy:multiplayer": "cdk deploy --require-approval never -c multiplayer=true",
+    "synth:multiplayer": "cdk synth -c multiplayer=true",
     "destroy": "cdk destroy"
   },
   "dependencies": {

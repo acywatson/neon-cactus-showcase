@@ -48,7 +48,7 @@ VITE_GAME_SERVER_URL=ws://localhost:8080/socket npm run dev
 
 ## Deploy
 
-Build the site and use the CDK application under `infra/`. The stack publishes the static bundle through CloudFront and runs the WebSocket room service on ECS Fargate behind the same domain.
+Build the site and use the CDK application under `infra/`. By default the stack publishes the static bundle through CloudFront with no always-on compute. The Fargate WebSocket room service remains available later through `npm run deploy:multiplayer`.
 
 ```bash
 npm ci

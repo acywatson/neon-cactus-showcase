@@ -20,6 +20,10 @@ export class GameSiteStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+    const multiplayerContext = this.node.tryGetContext('multiplayer');
+    const isMultiplayerEnabled =
+      multiplayerContext === true || multiplayerContext === 'true';
+
     const siteBucket = new s3.Bucket(this, 'SiteBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
@@ -27,56 +31,71 @@ export class GameSiteStack extends Stack {
       autoDeleteObjects: true,
     });
 
-    const vpc = new ec2.Vpc(this, 'GameVpc', {
-      maxAzs: 2,
-      natGateways: 0,
-      subnetConfiguration: [
+    const additionalBehaviors: Record<string, cloudfront.BehaviorOptions> = {};
+
+    if (isMultiplayerEnabled) {
+      const vpc = new ec2.Vpc(this, 'GameVpc', {
+        maxAzs: 2,
+        natGateways: 0,
+        subnetConfiguration: [
+          {
+            cidrMask: 24,
+            name: 'public',
+            subnetType: ec2.SubnetType.PUBLIC,
+          },
+        ],
+      });
+
+      const cluster = new ecs.Cluster(this, 'SessionCluster', {vpc});
+      const logGroup = new logs.LogGroup(this, 'SessionLogs', {
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: RemovalPolicy.DESTROY,
+      });
+
+      const sessionService = new patterns.ApplicationLoadBalancedFargateService(
+        this,
+        'SessionService',
         {
-          cidrMask: 24,
-          name: 'public',
-          subnetType: ec2.SubnetType.PUBLIC,
+          cluster,
+          publicLoadBalancer: true,
+          assignPublicIp: true,
+          desiredCount: 1,
+          minHealthyPercent: 100,
+          circuitBreaker: {rollback: true},
+          cpu: 256,
+          memoryLimitMiB: 512,
+          listenerPort: 80,
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromAsset(
+              path.join(__dirname, '../../services/session-server'),
+            ),
+            containerPort: 8080,
+            environment: {PORT: '8080'},
+            logDriver: ecs.LogDrivers.awsLogs({
+              streamPrefix: 'session-server',
+              logGroup,
+            }),
+          },
         },
-      ],
-    });
+      );
 
-    const cluster = new ecs.Cluster(this, 'SessionCluster', {vpc});
-    const logGroup = new logs.LogGroup(this, 'SessionLogs', {
-      retention: logs.RetentionDays.ONE_WEEK,
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
+      sessionService.targetGroup.configureHealthCheck({
+        path: '/health',
+        healthyHttpCodes: '200',
+        interval: Duration.seconds(30),
+      });
 
-    const sessionService = new patterns.ApplicationLoadBalancedFargateService(
-      this,
-      'SessionService',
-      {
-        cluster,
-        publicLoadBalancer: true,
-        assignPublicIp: true,
-        desiredCount: 1,
-        minHealthyPercent: 100,
-        circuitBreaker: {rollback: true},
-        cpu: 256,
-        memoryLimitMiB: 512,
-        listenerPort: 80,
-        taskImageOptions: {
-          image: ecs.ContainerImage.fromAsset(
-            path.join(__dirname, '../../services/session-server'),
-          ),
-          containerPort: 8080,
-          environment: {PORT: '8080'},
-          logDriver: ecs.LogDrivers.awsLogs({
-            streamPrefix: 'session-server',
-            logGroup,
-          }),
-        },
-      },
-    );
-
-    sessionService.targetGroup.configureHealthCheck({
-      path: '/health',
-      healthyHttpCodes: '200',
-      interval: Duration.seconds(30),
-    });
+      additionalBehaviors['/socket*'] = {
+        origin: new origins.LoadBalancerV2Origin(sessionService.loadBalancer, {
+          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+        }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        originRequestPolicy:
+          cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      };
+    }
 
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultRootObject: 'index.html',
@@ -86,19 +105,7 @@ export class GameSiteStack extends Stack {
         compress: true,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
-      additionalBehaviors: {
-        '/socket*': {
-          origin: new origins.LoadBalancerV2Origin(
-            sessionService.loadBalancer,
-            {protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY},
-          ),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-          originRequestPolicy:
-            cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-        },
-      },
+      additionalBehaviors,
       errorResponses: [
         {httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html'},
         {httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html'},
@@ -115,9 +122,16 @@ export class GameSiteStack extends Stack {
     new CfnOutput(this, 'SiteUrl', {
       value: `https://${distribution.distributionDomainName}`,
     });
-    new CfnOutput(this, 'MultiplayerWebSocketUrl', {
-      value: `wss://${distribution.distributionDomainName}/socket`,
-      description: 'The browser client discovers this same-origin endpoint automatically.',
+    new CfnOutput(this, 'DeploymentMode', {
+      value: isMultiplayerEnabled ? 'static-and-multiplayer' : 'static-only',
     });
+
+    if (isMultiplayerEnabled) {
+      new CfnOutput(this, 'MultiplayerWebSocketUrl', {
+        value: `wss://${distribution.distributionDomainName}/socket`,
+        description:
+          'The browser client discovers this same-origin endpoint automatically.',
+      });
+    }
   }
 }

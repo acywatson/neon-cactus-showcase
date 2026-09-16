@@ -1,6 +1,16 @@
 # Architecture
 
-## Runtime
+## Runtime modes
+
+### Default: static
+
+```text
+Browser → HTTPS → CloudFront → private S3 bucket
+```
+
+This mode has no always-on compute. The lobby uses its local preview fallback.
+
+### Optional: multiplayer
 
 ```text
 Browser
@@ -8,7 +18,7 @@ Browser
   └─ WSS /socket → CloudFront → public ALB → ECS Fargate room server
 ```
 
-CloudFront gives the site and WebSocket service one TLS origin. This prevents mixed-content failures and lets the browser derive the multiplayer URL from `window.location`.
+Enable it with `npm run deploy:multiplayer` from `infra/`. CloudFront gives the site and WebSocket service one TLS origin. This prevents mixed-content failures and lets the browser derive the multiplayer URL from `window.location`.
 
 ## Frontend seams
 
@@ -41,7 +51,7 @@ Build and tune this for two players first. Keep four protocol slots enabled, the
 
 ## AWS cost posture
 
-The static site is inexpensive. Fargate and the ALB are the baseline recurring cost even when idle. For an occasional workshop demo, destroy the stack after use or set the service to zero outside demo windows. A serverless WebSocket design can reduce idle cost but is a worse fit for an authoritative action-game loop.
+The default static site is inexpensive and has no always-on compute. The optional Fargate and ALB multiplayer mode adds baseline recurring cost even when idle. Enable it only when multiplayer testing begins, and destroy or downgrade it after workshop use.
 
 ## Security
 
