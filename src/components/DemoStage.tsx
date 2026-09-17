@@ -13,6 +13,7 @@ import {
   WORLD_W,
   type BulletState,
   type DroneState,
+  type EnemyKind,
   type Palette,
   type PlayerState,
   type Renderer,
@@ -47,12 +48,16 @@ export function DemoStage(_: DemoProps) {
   const [hasLost, setHasLost] = useState(false);
 
   const spawnWave = useCallback(() => {
-    dronesRef.current = Array.from({length: 7}, (_, index) => ({
-      x: WORLD_W + 120 + index * 150,
-      y: FLOOR - 80 - (index % 3) * 44,
-      speed: 78 + (index % 4) * 18,
+    const kinds: EnemyKind[] = ['skull', 'skull', 'hound', 'skull', 'crawler', 'skull', 'hound', 'skull'];
+    dronesRef.current = kinds.map((kind, index) => ({
+      x: WORLD_W + 120 + index * 170,
+      y: kind === 'skull' ? FLOOR - 80 - (index % 3) * 44 : FLOOR,
+      speed: kind === 'hound' ? 150 : kind === 'crawler' ? 42 : 78 + (index % 4) * 18,
       alive: true,
       phase: index * 0.8,
+      kind,
+      hp: kind === 'crawler' ? 2 : 1,
+      hit: 0,
     }));
   }, []);
 
@@ -144,7 +149,7 @@ export function DemoStage(_: DemoProps) {
         if (left) move(-MOVE_SPEED * dt);
         if (right) move(MOVE_SPEED * dt);
         if (player.moving && player.y >= FLOOR) {
-          player.runPhase += dt * 11;
+          player.runPhase += dt * 16;
           dustTimer -= dt;
           if (dustTimer <= 0) {
             renderer.emitDust(player.x - 10, FLOOR, 0.6);
@@ -176,15 +181,26 @@ export function DemoStage(_: DemoProps) {
             breachDelta += 1;
             renderer.emitBreach();
           }
+          if (drone.hit > 0) drone.hit -= 1;
+          const hitH = drone.kind === 'skull' ? 38 : drone.kind === 'crawler' ? 34 : 28;
+          const cy = drone.kind === 'skull' ? drone.y : drone.y - hitH / 2;
           for (const bullet of bulletsRef.current) {
-            if (Math.abs(bullet.x - drone.x) < 42 && Math.abs(bullet.y - drone.y) < 38) {
-              drone.alive = false;
+            if (Math.abs(bullet.x - drone.x) < 42 && Math.abs(bullet.y - cy) < hitH) {
               bullet.x = WORLD_W + 100;
-              scoreRef.current += 100;
+              drone.hp -= 1;
               renderer.emitHit(bullet.x - 30, bullet.y);
-              renderer.emitExplosion(drone.x, drone.y);
+              if (drone.hp > 0) {
+                drone.hit = 6;
+                drone.x += 14; // knockback
+                renderer.shake(2);
+                continue;
+              }
+              drone.alive = false;
+              scoreRef.current += drone.kind === 'crawler' ? 300 : drone.kind === 'hound' ? 150 : 100;
+              renderer.emitExplosion(drone.x, cy);
               window.setTimeout(() => {
                 drone.x = WORLD_W + 120 + Math.random() * 420;
+                drone.hp = drone.kind === 'crawler' ? 2 : 1;
                 drone.alive = true;
               }, 700);
             }

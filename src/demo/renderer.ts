@@ -38,12 +38,17 @@ export type PlayerState = {
   recoil: number;
 };
 
+export type EnemyKind = 'skull' | 'hound' | 'crawler';
+
 export type DroneState = {
   x: number;
   y: number;
   speed: number;
   alive: boolean;
   phase: number;
+  kind: EnemyKind;
+  hp: number;
+  hit: number; // frames of hit-flash remaining
 };
 
 export type BulletState = {x: number; y: number; px: number};
@@ -142,30 +147,6 @@ const LEGS = {
     '......BBBB.....BBBB.....',
     '......BBBB.....BBBB.....',
   ],
-  run0: [
-    '......LLL.........LLL...',
-    '.....LLL...........LLL..',
-    '....LLL.............LLL.',
-    '....LLL.............LLL.',
-    '...BBBB.............BBBB',
-    '...BBBB.............BBBB',
-  ],
-  run1: [
-    '........LLL...LLL.......',
-    '........LLL...LLL.......',
-    '.........LLLLLLL........',
-    '.........LLLLLLL........',
-    '........BBBBBBBB........',
-    '........BBBBBBBB........',
-  ],
-  run2: [
-    '.......LLL.....LLL......',
-    '......LLL.......LLL.....',
-    '.....LLL.........LLL....',
-    '.....LLL.........LLL....',
-    '....BBBB.........BBBB...',
-    '....BBBB.........BBBB...',
-  ],
   jump: [
     '........LLL....LLL......',
     '.......LLL.....LLL......',
@@ -173,6 +154,17 @@ const LEGS = {
     '......BBBB......BBBB....',
     '......BBBB......BBBB....',
     '........................',
+  ],
+  // 8-frame run: contact → recoil → passing → high point, mirrored. Back leg trails, front leg reaches.
+  run: [
+    ['......LLL.........LLL...', '.....LLL...........LLL..', '....LLL.............LLL.', '....LLL.............LLL.', '...BBBB.............BBBB', '...BBBB.............BBBB'],
+    ['.......LLL.......LLL....', '......LLL.........LLL...', '.....LLL...........LLL..', '.....LLL...........LLL..', '....BBBB...........BBBB.', '....BBBB...........BBBB.'],
+    ['........LLL....LLL......', '........LLL....LLL......', '.......LLL......LLL.....', '.......LLL......LLL.....', '......BBBB......BBBB....', '......BBBB......BBBB....'],
+    ['.........LLL..LLL.......', '.........LLL..LLL.......', '..........LLLLLL........', '..........LLLLLL........', '.........BBBBBBBB.......', '.........BBBBBBBB.......'],
+    ['...LLL.........LLL......', '..LLL...........LLL.....', '.LLL.............LLL....', '.LLL.............LLL....', 'BBBB.............BBBB...', 'BBBB.............BBBB...'],
+    ['....LLL.......LLL.......', '...LLL.........LLL......', '..LLL...........LLL.....', '..LLL...........LLL.....', '.BBBB...........BBBB....', '.BBBB...........BBBB....'],
+    ['......LLL....LLL........', '.....LLL......LLL.......', '.....LLL.......LLL......', '.....LLL.......LLL......', '....BBBB.......BBBB.....', '....BBBB.......BBBB.....'],
+    ['.......LLL..LLL.........', '.......LLL..LLL.........', '........LLLLLL..........', '........LLLLLL..........', '.......BBBBBBBB.........', '.......BBBBBBBB.........'],
   ],
 };
 
@@ -204,6 +196,60 @@ const DRONE_FRAMES = [
     '...KWKWKWKWK..',
     '....KKKKKKK...',
     '...E.......E..',
+  ],
+];
+
+// Cyber-hound: low, fast, chrome spine, pink optic. Faces left (running toward the saloon).
+const HOUND_FRAMES = [
+  [
+    '.......KKK...........',
+    '......KPPKK..........',
+    '.....KKKKKKKKKKK.....',
+    '....KmMmKKmMmKKmK....',
+    '...KKNNNNNNNNNNNNK...',
+    '....KKNNNNNNNNNNKK...',
+    '.....KN.......NK.....',
+    '....KN.........NK....',
+    '...KN...........NK...',
+  ],
+  [
+    '.......KKK...........',
+    '......KPPKK..........',
+    '.....KKKKKKKKKKK.....',
+    '....KmMmKKmMmKKmK....',
+    '...KKNNNNNNNNNNNNK...',
+    '....KKNNNNNNNNNNKK...',
+    '......KN....NK.......',
+    '.......KN..NK........',
+    '......KN....NK.......',
+  ],
+];
+
+// Armored crawler: slow tank on treads, amber warning light, two hits to kill.
+const CRAWLER_FRAMES = [
+  [
+    '........KAAK........',
+    '.......KKKKKK.......',
+    '.....KKmMMMMmKK.....',
+    '....KmMMMMMMMMmK....',
+    '...KMMMKKKKKKMMMK...',
+    '...KMMKPPKKPPKMMK...',
+    '...KMMMKKKKKKMMMK...',
+    '..KKmMMMMMMMMMMmKK..',
+    '.KGKGKGKGKGKGKGKGKG.',
+    '.KKGKGKGKGKGKGKGKGK.',
+  ],
+  [
+    '........KAAK........',
+    '.......KKKKKK.......',
+    '.....KKmMMMMmKK.....',
+    '....KmMMMMMMMMmK....',
+    '...KMMMKKKKKKMMMK...',
+    '...KMMKPPKKPPKMMK...',
+    '...KMMMKKKKKKMMMK...',
+    '..KKmMMMMMMMMMMmKK..',
+    '.GKGKGKGKGKGKGKGKGK.',
+    '.KGKGKGKGKGKGKGKGKK.',
   ],
 ];
 
@@ -558,6 +604,8 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
     const windows = [[10, 20], [34, 20], [58, 20], [82, 20], [16, 72], [72, 72]];
     windows.forEach(([wx, wy], i) => {
       const broken = i < saloonDamage;
+      // patron silhouette drifting past the window
+      const drift = Math.sin(t * 0.0007 + i * 1.9);
       ctx.fillStyle = '#0d0910';
       ctx.fillRect(x0 + wx - 1, top + wy - 1, 14, 18);
       const lit = broken ? (Math.random() > 0.5 ? '#3a2a1a' : '#120c10') : p.amber;
@@ -565,6 +613,12 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
       ctx.globalAlpha = broken ? 0.6 : 0.85 * flicker + 0.15;
       ctx.fillRect(x0 + wx, top + wy, 12, 16);
       ctx.globalAlpha = 1;
+      if (!broken && drift > -0.2) {
+        ctx.fillStyle = 'rgba(20,12,16,0.85)';
+        const sx = x0 + wx + 2 + Math.round((drift + 0.2) * 6);
+        ctx.fillRect(sx, top + wy + 5, 3, 3);
+        ctx.fillRect(sx - 1, top + wy + 8, 5, 8);
+      }
       ctx.fillStyle = '#0d0910';
       ctx.fillRect(x0 + wx + 5, top + wy, 2, 16);
       ctx.fillRect(x0 + wx, top + wy + 7, 12, 1);
@@ -581,17 +635,21 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
     ctx.fillStyle = '#2a1f2c';
     ctx.fillRect(x0 + 46, FLOOR_LOW - 32, 9, 24);
     ctx.fillRect(x0 + 57, FLOOR_LOW - 32, 9, 24);
+    const swing = 0.25 + 0.15 * Math.max(0, Math.sin(t * 0.0013));
     const dg = ctx.createLinearGradient(0, FLOOR_LOW - 34, 0, FLOOR_LOW);
-    dg.addColorStop(0, 'rgba(224,175,104,0.35)');
+    dg.addColorStop(0, `rgba(224,175,104,${swing})`);
     dg.addColorStop(1, 'rgba(224,175,104,0)');
     ctx.fillStyle = dg;
     ctx.fillRect(x0 + 44, FLOOR_LOW - 34, 24, 34);
+    // light spill on the boardwalk from the doors
+    glow.fillStyle = `rgba(224,175,104,${swing * 0.6})`;
+    glow.fillRect(x0 + 36, FLOOR_LOW - 1, 40, 4);
     // neon marquee: LAST CALL
     ctx.fillStyle = '#0a0a12';
     ctx.fillRect(x0 + 6, top + 2, w - 14, 14);
     ctx.font = 'bold 10px "IBM Plex Mono", monospace';
     ctx.textBaseline = 'middle';
-    const dead = Math.sin(t * 0.0021) > 0.985 ? 2 : -1; // the 'S' dies now and then
+    const dead = Math.sin(t * 0.0021) > 0.997 ? 2 : -1; // the 'S' dies now and then
     let lx = x0 + 14;
     ctx.textAlign = 'start';
     for (let i = 0; i < 'LAST CALL'.length; i++) {
@@ -631,18 +689,19 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
 
   function drawPlayer(pl: PlayerState, t: number) {
     const scale = 2;
-    const rows = [...PLAYER_TOP, ...(pl.y < FLOOR - 0.5 ? LEGS.jump : pl.moving ? [LEGS.run0, LEGS.run1, LEGS.run2, LEGS.run1][Math.floor(pl.runPhase) % 4] : LEGS.stand)];
+    const runFrame = Math.floor(pl.runPhase) % 8;
+    const rows = [...PLAYER_TOP, ...(pl.y < FLOOR - 0.5 ? LEGS.jump : pl.moving ? LEGS.run[runFrame] : LEGS.stand)];
     const spriteH = rows.length * scale;
     const px = Math.round(pl.x * S) - 24;
     const py = Math.round(pl.y * S) - spriteH;
     const airborne = pl.y < FLOOR - 0.5;
-    const bob = !airborne && pl.moving && Math.floor(pl.runPhase) % 2 === 1 ? 1 : 0;
+    const bob = !airborne && pl.moving && (runFrame === 3 || runFrame === 7) ? -1 : !airborne && pl.moving && (runFrame === 1 || runFrame === 5) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
     ctx.ellipse(px + 24, FLOOR_LOW + 1, airborne ? 12 : 17, 3, 0, 0, Math.PI * 2);
     ctx.fill();
     const recoil = Math.round(pl.recoil);
-    const key = `player-${airborne ? 'j' : pl.moving ? Math.floor(pl.runPhase) % 4 : 's'}`;
+    const key = `player-${airborne ? 'j' : pl.moving ? runFrame : 's'}`;
     const body = sprite(key, rows, scale);
     // rim light from the city (right side, cyan) — draw tinted copy offset by 1px
     ctx.drawImage(body, px - recoil, py + bob);
@@ -684,28 +743,61 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
   }
 
   function drawDrone(d: DroneState, t: number) {
-    const bobY = Math.sin(t * 0.004 + d.phase) * 4;
-    const dx = Math.round(d.x * S) - 21;
-    const dy = Math.round((d.y + bobY) * S) - 18;
-    const frame = Math.floor(t / 45) % 2;
-    // shadow on the ground
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    const frame = Math.floor(t / (d.kind === 'hound' ? 70 : 45)) % 2;
+    let rows: string[];
+    let bobY = 0;
+    let accent = p.pink;
+    if (d.kind === 'skull') { rows = DRONE_FRAMES[frame]; bobY = Math.sin(t * 0.004 + d.phase) * 4; accent = p.cyan; }
+    else if (d.kind === 'hound') { rows = HOUND_FRAMES[frame]; bobY = frame ? -3 : 0; accent = p.pink; }
+    else { rows = CRAWLER_FRAMES[frame]; accent = p.amber; }
+    const scale = 3;
+    const w = rows[0].length * scale;
+    const h = rows.length * scale;
+    const dx = Math.round(d.x * S) - w / 2;
+    const dy = Math.round((d.y + bobY) * S) - (d.kind === 'skull' ? h / 2 : h);
+    // dynamic light pool on the wet ground under each enemy
+    glow.fillStyle = accent;
+    glow.globalAlpha = d.kind === 'skull' ? 0.22 : 0.3;
+    glow.beginPath();
+    glow.ellipse(dx + w / 2, FLOOR_LOW + 2, w * 0.7, 4, 0, 0, Math.PI * 2);
+    glow.fill();
+    glow.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
-    ctx.ellipse(dx + 21, FLOOR_LOW + 1, 14, 2.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(dx + w / 2, FLOOR_LOW + 1, w * 0.45, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.drawImage(sprite(`drone-${frame}`, DRONE_FRAMES[frame], 3), dx, dy);
-    glow.drawImage(sprite(`drone-${frame}`, DRONE_FRAMES[frame], 3, true), dx, dy);
-    // exhaust trail
-    if (Math.random() > 0.5) emit(1, d.x + 30, d.y + bobY + 30, p.cyan, 30, 0.35, 1, true, -40, 0.6, Math.PI / 2);
-    // search beam every few seconds
-    if (Math.sin(t * 0.002 + d.phase * 3) > 0.96) {
-      glow.fillStyle = 'rgba(255,0,124,0.25)';
-      glow.beginPath();
-      glow.moveTo(dx + 18, dy + 24);
-      glow.lineTo(dx - 14, FLOOR_LOW);
-      glow.lineTo(dx + 46, FLOOR_LOW);
-      glow.closePath();
-      glow.fill();
+    const key = `${d.kind}-${frame}`;
+    const img = sprite(key, rows, scale);
+    ctx.drawImage(img, dx, dy);
+    if (d.hit > 0) {
+      // hit flash: white silhouette
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(dx, dy, w, h);
+      ctx.restore();
+      // redraw only where sprite is, via glow layer using sprite alpha
+      glow.drawImage(img, dx, dy);
+    } else {
+      glow.drawImage(sprite(key, rows, scale, true), dx, dy);
+    }
+    if (d.kind === 'skull') {
+      if (Math.random() > 0.5) emit(1, d.x + 30, d.y + bobY + 30, p.cyan, 30, 0.35, 1, true, -40, 0.6, Math.PI / 2);
+      if (Math.sin(t * 0.002 + d.phase * 3) > 0.96) {
+        glow.fillStyle = 'rgba(255,0,124,0.25)';
+        glow.beginPath();
+        glow.moveTo(dx + w / 2, dy + h * 0.7);
+        glow.lineTo(dx - 14, FLOOR_LOW);
+        glow.lineTo(dx + w + 14, FLOOR_LOW);
+        glow.closePath();
+        glow.fill();
+      }
+    } else if (d.kind === 'hound' && frame === 0 && Math.random() > 0.4) {
+      emit(2, d.x + 20, FLOOR - 2, '#4a3a3f', 80, 0.35, 2, false, 120, 1.0, -Math.PI / 2 + 0.6);
+    } else if (d.kind === 'crawler') {
+      // warning strobe
+      if (Math.floor(t / 250) % 2 === 0) { glow.fillStyle = p.amber; glow.fillRect(dx + w / 2 - 3, dy - 2, 6, 4); }
+      if (Math.random() > 0.7) emit(1, d.x - 22, FLOOR - 3, '#5a4a45', 40, 0.4, 2, false, 100, 0.8, -Math.PI / 2 + 0.8);
     }
   }
 
