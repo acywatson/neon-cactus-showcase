@@ -629,6 +629,7 @@
   }
 
   .game-canvas {
+    image-rendering: pixelated;
     display: block;
     width: 100%;
     aspect-ratio: 16 / 9;
