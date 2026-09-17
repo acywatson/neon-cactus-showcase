@@ -56,8 +56,8 @@ function dossierTexture(spec: CardSpec): THREE.CanvasTexture {
   const accent = `#${spec.accent.toString(16).padStart(6, '0')}`;
   ctx.fillStyle = '#0f0f17';
   ctx.fillRect(0, 0, 512, 1024);
-  ctx.strokeStyle = 'rgba(125,207,255,0.08)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(125,207,255,0.05)';
+  ctx.lineWidth = 2;
   for (let y = 0; y < 1024; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
   for (let x = 0; x < 512; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke(); }
   ctx.textAlign = 'center';
@@ -85,32 +85,39 @@ function dossierTexture(spec: CardSpec): THREE.CanvasTexture {
   let seed = spec.name.length * 977;
   while (x < 440) {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    const w = 2 + (seed % 7);
+    const w = 5 + (seed % 9);
     ctx.fillStyle = seed % 3 === 0 ? accent : '#c0caf5';
     ctx.fillRect(x, 860, w, 90);
-    x += w + 3 + (seed % 5);
+    x += w + 5 + (seed % 6);
   }
   ctx.fillStyle = '#565f89';
   ctx.font = '500 18px "IBM Plex Mono", monospace';
   ctx.fillText('DEAD OR ALIVE  ·  LAST CALL GAMES  ·  2086', 256, 990);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
   return texture;
 }
 
 function buildHoloCard(front: THREE.Texture, spec: CardSpec): {group: THREE.Group; material: THREE.ShaderMaterial} {
   const group = new THREE.Group();
-  const material = new THREE.ShaderMaterial({
+  group.userData.holoCard = true;
+  const back = dossierTexture(spec);
+  // One shader, two single-sided meshes (front + back-flipped) so faces never overlap in the same
+  // pixel and fight for draw order. Shared uniforms via a common object.
+  const shared = {
+    uTime: {value: 0},
+    uFlicker: {value: 0},
+    uAccent: {value: new THREE.Color(spec.accent)},
+  };
+  const makeMaterial = (map: THREE.Texture, isFront: boolean) => new THREE.ShaderMaterial({
     transparent: true,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: false,
-    uniforms: {
-      uFront: {value: front},
-      uBack: {value: dossierTexture(spec)},
-      uTime: {value: 0},
-      uFlicker: {value: 0},
-      uAccent: {value: new THREE.Color(spec.accent)},
-    },
+    uniforms: {uMap: {value: map}, uIsFront: {value: isFront ? 1 : 0}, ...shared},
     vertexShader: `
       varying vec2 vUv;
       void main(){
@@ -120,25 +127,19 @@ function buildHoloCard(front: THREE.Texture, spec: CardSpec): {group: THREE.Grou
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: `
-      uniform sampler2D uFront; uniform sampler2D uBack; uniform float uTime; uniform float uFlicker; uniform vec3 uAccent;
+      uniform sampler2D uMap; uniform float uIsFront; uniform float uTime; uniform float uFlicker; uniform vec3 uAccent;
       varying vec2 vUv;
       void main(){
         vec2 uv = vUv;
-        bool front = gl_FrontFacing;
-        vec2 suv = front ? uv : vec2(1.0 - uv.x, uv.y);
-        float ca = 0.003 + 0.004 * uFlicker;
+        float ca = (0.0012 + 0.003 * uFlicker) * uIsFront;
         vec3 col;
-        if (front) {
-          col.r = texture2D(uFront, suv + vec2(ca, 0.0)).r;
-          col.g = texture2D(uFront, suv).g;
-          col.b = texture2D(uFront, suv - vec2(ca, 0.0)).b;
-          col *= 1.08;
-        } else {
-          col = texture2D(uBack, suv).rgb;
-        }
-        float scan = 0.88 + 0.12 * sin(uv.y * 260.0 - uTime * 7.0);
+        col.r = texture2D(uMap, uv + vec2(ca, 0.0)).r;
+        col.g = texture2D(uMap, uv).g;
+        col.b = texture2D(uMap, uv - vec2(ca, 0.0)).b;
+        col *= 1.0 + 0.08 * uIsFront;
+        float scan = 0.94 + 0.06 * sin(uv.y * 90.0 - uTime * 2.5);
         float roll = fract(uv.y * 0.6 - uTime * 0.09);
-        float band = 1.0 + 0.22 * (1.0 - smoothstep(0.0, 0.06, abs(roll - 0.5)));
+        float band = 1.0 + 0.12 * (1.0 - smoothstep(0.0, 0.08, abs(roll - 0.5)));
         col *= scan * band;
         col = mix(col, col * (0.7 + 0.5 * uAccent), 0.18);
         float edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
@@ -150,9 +151,17 @@ function buildHoloCard(front: THREE.Texture, spec: CardSpec): {group: THREE.Grou
         gl_FragColor = vec4(col, alpha);
       }`,
   });
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W, CARD_H, 24, 2), material);
-  plane.position.y = 0.55 + CARD_H / 2;
-  group.add(plane);
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 24, 2);
+  const frontMesh = new THREE.Mesh(geometry, makeMaterial(front, true));
+  frontMesh.position.y = 0.55 + CARD_H / 2;
+  frontMesh.renderOrder = 10;
+  group.add(frontMesh);
+  const backMesh = new THREE.Mesh(geometry, makeMaterial(back, false));
+  backMesh.position.y = 0.55 + CARD_H / 2;
+  backMesh.rotation.y = Math.PI; // faces the other way; its own front side is the card's back
+  backMesh.renderOrder = 10;
+  group.add(backMesh);
+  const material = frontMesh.material as THREE.ShaderMaterial; // uniforms are shared objects
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(CARD_W * 0.42, 0.72, 0.56, 24, 1, true),
     new THREE.MeshBasicMaterial({color: spec.accent, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending}),
@@ -447,6 +456,15 @@ function buildWetStreet(width: number, height: number): Reflector {
   reflector.rotation.x = -Math.PI / 2;
   reflector.position.y = -0.035;
   reflector.renderOrder = -1;
+  // Hide hologram cards from the mirror pass: they are double-sided transparent quads that shimmer badly
+  // when reflected, and a hologram has no physical surface to reflect anyway.
+  const originalOnBeforeRender = reflector.onBeforeRender.bind(reflector);
+  reflector.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+    const hidden: THREE.Object3D[] = [];
+    scene.traverse(o => { if (o.userData.holoCard && o.visible) { o.visible = false; hidden.push(o); } });
+    originalOnBeforeRender(renderer, scene, camera, geometry, material, group);
+    hidden.forEach(o => { o.visible = true; });
+  };
   const material = reflector.material as THREE.ShaderMaterial;
   material.uniforms.uTime = {value: 0};
   material.transparent = true;
@@ -459,9 +477,9 @@ function buildWetStreet(width: number, height: number): Reflector {
     void main() {
       vec4 uv = vUv;
       // ripples + rain-drop rings distort the reflection
-      float r1 = noise(vWorld.xz * 2.2 + vec2(uTime * 0.35, -uTime * 0.2));
-      float r2 = noise(vWorld.xz * 6.0 - vec2(uTime * 0.6, uTime * 0.4));
-      uv.xy += (vec2(r1, r2) - 0.5) * 0.045 * uv.w;
+      float r1 = noise(vWorld.xz * 2.2 + vec2(uTime * 0.18, -uTime * 0.1));
+      float r2 = noise(vWorld.xz * 6.0 - vec2(uTime * 0.3, uTime * 0.2));
+      uv.xy += (vec2(r1, r2) - 0.5) * 0.022 * uv.w;
       vec4 base = texture2DProj(tDiffuse, uv);
       // wetness mask: puddles are mirror-like, asphalt between is dull. Big soft blobs + fine grit.
       float puddle = smoothstep(0.42, 0.62, noise(vWorld.xz * 0.28 + 3.7));
@@ -577,7 +595,7 @@ function buildDust(count: number): THREE.Points {
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({color: PALETTE.amber, size: 0.045, transparent: true, opacity: 0.7, sizeAttenuation: true});
+  const material = new THREE.PointsMaterial({color: PALETTE.amber, size: 0.07, transparent: true, opacity: 0.45, sizeAttenuation: true, depthWrite: false});
   return new THREE.Points(geometry, material);
 }
 
@@ -700,6 +718,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
         if (!texture) return;
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
         const card = buildHoloCard(texture, CARDS[i]);
         card.group.rotation.y = CARDS[i].phase;
         tables[i].add(card.group);
@@ -720,11 +739,11 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     }
     // film finish: grain + chromatic aberration + vignette in one cheap pass
     const finish = new ShaderPass({
-      uniforms: {tDiffuse: {value: null}, uTime: {value: 0}, uGrain: {value: highTier ? 0.06 : 0.035}},
+      uniforms: {tDiffuse: {value: null}, uTime: {value: 0}, uGrain: {value: highTier ? 0.035 : 0.02}},
       vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `
         uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; varying vec2 vUv;
-        float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+        float hash(vec2 p){ float t = floor(uTime * 12.0) / 12.0; return fract(sin(dot(p + t, vec2(12.9898, 78.233))) * 43758.5453); }
         void main(){
           vec2 d = vUv - 0.5;
           float r2 = dot(d, d);
@@ -733,7 +752,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
           col.r = texture2D(tDiffuse, vUv + ca).r;
           col.g = texture2D(tDiffuse, vUv).g;
           col.b = texture2D(tDiffuse, vUv - ca).b;
-          float g = (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * uGrain;
+          float g = (hash(floor(vUv * vec2(960.0, 540.0))) - 0.5) * uGrain;
           col += g * (0.6 + 0.4 * (1.0 - col));
           float vig = 1.0 - smoothstep(0.35, 0.95, sqrt(r2) * 1.25);
           col *= 0.82 + 0.18 * vig;
@@ -780,6 +799,9 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     const clock = new THREE.Clock();
     let frame = 0;
     let readyFired = false;
+    let billboardGlitch = 0;
+    let billboardWasGlitching = false;
+    let neonDrop = 0;
     const rainPositions = rain.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
     const rainVelocities = rain.userData.velocities as Float32Array;
 
@@ -795,24 +817,41 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
           card.group.position.y = Math.sin(t * 1.1 + card.spec.phase) * 0.03;
           card.material.uniforms.uTime.value = t;
           const f = card.material.uniforms.uFlicker;
-          f.value = Math.max(0, f.value - dt * 6);
-          if (Math.random() > 0.992) f.value = 0.6 + Math.random() * 0.4;
+          f.value = Math.max(0, f.value - dt * 2.5);
+          if (f.value === 0 && Math.random() < dt * 0.12) f.value = 0.5 + Math.random() * 0.3;
         }
         (ground.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
         (wet.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
         for (const c of cones) (c.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
-        if (Math.floor(t * 60) % 6 === 0) {
+        // Beacons: smooth pulse (no per-frame branch)
+        if (Math.floor(t * 20) !== Math.floor((t - dt) * 20)) {
           city.traverse(obj => {
             const m = obj as THREE.Mesh;
-            if (m.userData.beacon) ((m.material as THREE.MeshStandardMaterial).emissiveIntensity = (Math.sin(t * 2.4 + m.position.x) > 0.6 ? 4 : 0.2));
-            if (m.userData.billboard) ((m.material as THREE.MeshBasicMaterial).opacity = Math.random() > 0.97 ? 0.35 : 1), ((m.material as THREE.MeshBasicMaterial).transparent = true);
+            if (m.userData.beacon) ((m.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.2 + 3.8 * Math.max(0, Math.sin(t * 2.4 + m.position.x)) ** 6);
           });
         }
-        const dropout = Math.random() > 0.987;
+        // Billboard glitch: rare, then fades back over ~150ms instead of popping for one frame
+        billboardGlitch = Math.max(0, billboardGlitch - dt * 6);
+        if (billboardGlitch === 0 && Math.random() < dt * 0.25) billboardGlitch = 1;
+        if (billboardGlitch > 0 || billboardWasGlitching) {
+          city.traverse(obj => {
+            const m = obj as THREE.Mesh;
+            if (m.userData.billboard) {
+              const mat = m.material as THREE.MeshBasicMaterial;
+              mat.transparent = true;
+              mat.opacity = 1 - 0.6 * billboardGlitch;
+            }
+          });
+          billboardWasGlitching = billboardGlitch > 0;
+        }
+        // Neon sign: dt-based dropout that decays over ~250ms, plus gentle 60Hz-ish hum
+        neonDrop = Math.max(0, neonDrop - dt * 4);
+        if (neonDrop === 0 && Math.random() < dt * 0.4) neonDrop = 1;
+        const hum = 0.9 + Math.sin(t * 11) * 0.06;
         cactus.children.forEach((c, i) => {
           const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
-          if ((c as THREE.Mesh).userData.neonCore && m) m.opacity = dropout ? 0.35 : 0.9 + Math.sin(t * 11 + i) * 0.08, (m.transparent = true);
-          if (c.userData.neonLight) (c as THREE.PointLight).intensity = dropout ? 1.2 : 3.2 + Math.sin(t * 11) * 0.2;
+          if ((c as THREE.Mesh).userData.neonCore && m) { m.transparent = true; m.opacity = hum * (1 - 0.6 * neonDrop) + Math.sin(t * 11 + i) * 0.02; }
+          if (c.userData.neonLight) (c as THREE.PointLight).intensity = (3.2 + Math.sin(t * 11) * 0.15) * (1 - 0.6 * neonDrop);
         });
         if (rainPositions) {
           const arr = rainPositions.array as Float32Array;
