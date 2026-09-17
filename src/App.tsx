@@ -326,7 +326,7 @@ export function App() {
         </HStack>
       </footer>
 
-      <LobbyDialog isOpen={isLobbyOpen} onOpenChange={setIsLobbyOpen} />
+      <LobbyDialog isOpen={isLobbyOpen} onOpenChange={setIsLobbyOpen} onPlaySolo={scrollToDemo} />
     </>
   );
 }

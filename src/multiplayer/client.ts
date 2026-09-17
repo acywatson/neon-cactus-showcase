@@ -22,36 +22,26 @@ const isMultiplayerEnabled =
 function multiplayerUrl(): string | undefined {
   if (!isMultiplayerEnabled) return undefined;
   if (configuredUrl && !configuredUrl.includes('example.')) return configuredUrl;
-  if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+  if (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}/socket`;
   }
   return undefined;
 }
 
-function localRoom(code?: string): RoomConnection {
-  return {
-    socket: null,
-    playerId: crypto.randomUUID(),
-    room: {
-      code: code || createRoomCode(),
-      maxPlayers: 4,
-      players: [{id: crypto.randomUUID(), name: 'Outlaw'}],
-    },
-  };
-}
+/** True when this build is wired to a live room server. */
+export const isOnlinePlayAvailable = multiplayerUrl() !== undefined;
 
-function createRoomCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({length: 4}, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
-}
-
-async function requestRoom(payload: object, fallbackCode?: string): Promise<RoomConnection> {
-  const serverUrl = multiplayerUrl();
-  if (!serverUrl) {
-    await new Promise(resolve => window.setTimeout(resolve, 250));
-    return localRoom(fallbackCode);
+export class OfflineError extends Error {
+  constructor() {
+    super('Online rooms are not live on this build yet.');
+    this.name = 'OfflineError';
   }
+}
+
+async function requestRoom(payload: object): Promise<RoomConnection> {
+  const serverUrl = multiplayerUrl();
+  if (!serverUrl) throw new OfflineError();
 
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(serverUrl);
@@ -85,5 +75,5 @@ export function createRoom(playerName = 'Outlaw'): Promise<RoomConnection> {
 }
 
 export function joinRoom(code: string, playerName = 'Outlaw'): Promise<RoomConnection> {
-  return requestRoom({type: 'join_room', code: code.toUpperCase(), playerName}, code.toUpperCase());
+  return requestRoom({type: 'join_room', code: code.toUpperCase(), playerName});
 }

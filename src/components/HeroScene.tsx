@@ -211,67 +211,213 @@ function buildCactusSign(): THREE.Group {
   return g;
 }
 
-function windowTexture(seed: number, cols: number, rows: number, tint: string): THREE.CanvasTexture {
+function windowTexture(seed: number, cols: number, rows: number, tint: string, lit = 0.62): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = cols * 8;
   canvas.height = rows * 8;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#0a0a11';
+  ctx.fillStyle = '#05060a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   let r = seed;
   const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  // floor bands (dark mullions between window rows) read as real facades
+  ctx.fillStyle = '#0a0b12';
+  for (let y = 0; y < rows; y++) ctx.fillRect(0, y * 8 + 7, canvas.width, 1);
   for (let y = 0; y < rows; y++) {
+    // whole floors go dark or lit together — offices, not random noise
+    const floorLit = rand() < lit;
+    const floorWarm = rand() > 0.5;
     for (let x = 0; x < cols; x++) {
       const v = rand();
-      if (v > 0.62) {
-        ctx.fillStyle = v > 0.94 ? tint : v > 0.8 ? '#e0af68' : '#3b4261';
-        ctx.globalAlpha = 0.55 + rand() * 0.45;
-        ctx.fillRect(x * 8 + 2, y * 8 + 2, 4, 5);
+      if (floorLit && v > 0.25) {
+        const w = v > 0.96 ? tint : floorWarm ? '#d9b27a' : '#8fa4c9';
+        ctx.fillStyle = w;
+        ctx.globalAlpha = 0.35 + rand() * 0.6;
+        ctx.fillRect(x * 8 + 1, y * 8 + 1, 6, 5);
+        // slight interior detail
+        if (rand() > 0.7) {
+          ctx.fillStyle = '#05060a';
+          ctx.globalAlpha = 0.5;
+          ctx.fillRect(x * 8 + 1 + Math.floor(rand() * 4), y * 8 + 1, 2, 5);
+        }
       }
     }
   }
   ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+function billboardTexture(seed: number, text: string, fg: string, bg: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 ${text.length > 6 ? 96 : 140}px "Barlow Condensed", Impact, sans-serif`;
+  ctx.fillText(text, 256, 128);
+  // scan bars so it reads as an LED wall not a flat quad
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  for (let y = 0; y < 256; y += 4) ctx.fillRect(0, y, 512, 1);
+  let r = seed;
+  const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  for (let i = 0; i < 6; i++) ctx.fillRect(rand() * 512, 0, 2 + rand() * 20, 256);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const BILLBOARDS: Array<[string, string, string]> = [
+  ['ラストコール', '#ff5aa7', '#3a0a22'],
+  ['MESA', '#7dcfff', '#062a3a'],
+  ['DRINK', '#e0af68', '#3a2408'],
+  ['電気', '#9ece6a', '#0d2a12'],
+  ['BOUNTY', '#ff9e64', '#3a1a08'],
+  ['夜', '#bb9af7', '#1e0d3a'],
+];
+
+function tower(seed: number, x: number, z: number, w: number, d: number, h: number, tint: string, lit: number): THREE.Group {
+  const g = new THREE.Group();
+  let r = seed;
+  const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const facade = new THREE.MeshStandardMaterial({color: 0x0a0b12, roughness: 0.55, metalness: 0.35});
+  const addBlock = (bx: number, by: number, bz: number, bw: number, bh: number, bd: number) => {
+    const tex = windowTexture(seed + Math.round(by * 13), Math.max(2, Math.round(bw * 3)), Math.max(2, Math.round(bh * 3)), tint, lit);
+    const mats = [
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      facade, facade,
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+    ];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mats);
+    m.position.set(bx, by + bh / 2, bz);
+    g.add(m);
+    return m;
+  };
+  // main shaft, then setbacks stepping in as it rises
+  addBlock(0, 0, 0, w, h, d);
+  let cw = w, cd = d, cy = h;
+  const setbacks = rand() > 0.35 ? 1 + Math.floor(rand() * 2) : 0;
+  for (let i = 0; i < setbacks; i++) {
+    cw *= 0.62 + rand() * 0.2;
+    cd *= 0.62 + rand() * 0.2;
+    const sh = h * (0.18 + rand() * 0.22);
+    addBlock((rand() - 0.5) * (w - cw) * 0.6, cy, (rand() - 0.5) * (d - cd) * 0.6, cw, sh, cd);
+    cy += sh;
+  }
+  // roof: mechanical box + spire + red aviation light
+  const roofMat = new THREE.MeshStandardMaterial({color: 0x07080d, roughness: 0.9});
+  const roofBox = new THREE.Mesh(new THREE.BoxGeometry(cw * 0.35, 0.6, cd * 0.35), roofMat);
+  roofBox.position.set(cw * 0.2, cy + 0.3, 0);
+  g.add(roofBox);
+  if (rand() > 0.4) {
+    const spireH = 1.5 + rand() * 4;
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.08, spireH, 6), roofMat);
+    spire.position.set(0, cy + spireH / 2, 0);
+    g.add(spire);
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), glow(0xff2a3a, 3));
+    beacon.position.set(0, cy + spireH, 0);
+    beacon.userData.beacon = true;
+    g.add(beacon);
+  }
+  // rooftop edge strip
+  if (rand() > 0.5) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.05, 0.06, 0.06), glow(rand() > 0.5 ? PALETTE.pink : PALETTE.cyan, 2.5));
+    strip.position.set(0, cy + 0.03, cd / 2 + 0.03);
+    g.add(strip);
+  }
+  // giant LED billboard on the street face of bigger towers
+  if (w > 2.4 && rand() > 0.45) {
+    const [text, fg, bg] = BILLBOARDS[Math.floor(rand() * BILLBOARDS.length)];
+    const bw = w * 0.8;
+    const bh = bw * 0.5;
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(bw, bh),
+      new THREE.MeshBasicMaterial({map: billboardTexture(seed, text, fg, bg), toneMapped: false}),
+    );
+    board.position.set(0, h * (0.3 + rand() * 0.4), d / 2 + 0.03);
+    board.userData.billboard = true;
+    g.add(board);
+    // frame + light spill
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.12, bh + 0.12, 0.05), roofMat);
+    frame.position.copy(board.position);
+    frame.position.z -= 0.02;
+    g.add(frame);
+    const spill = new THREE.PointLight(new THREE.Color(fg), 3, w * 3, 1.5);
+    spill.position.set(0, board.position.y, d / 2 + 1.2);
+    g.add(spill);
+  }
+  // vertical neon sign strips down the corner
+  if (rand() > 0.5) {
+    const color = rand() > 0.5 ? PALETTE.pink : PALETTE.cyan;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.09, h * (0.3 + rand() * 0.4), 0.09), glow(color, 3.2));
+    strip.position.set(w / 2 + 0.06, h * 0.45, d / 2 + 0.06);
+    g.add(strip);
+  }
+  g.position.set(x, 0, z);
+  return g;
 }
 
 function buildCity(): THREE.Group {
   const g = new THREE.Group();
   let seed = 7;
   const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  // Far towers
-  for (let i = 0; i < 26; i++) {
-    const w = 1.2 + rand() * 2.4;
-    const h = 3 + rand() * 11;
-    const d = 1.2 + rand() * 2;
-    const x = -26 + i * 2.1 + rand() * 1.2;
-    const z = -26 - rand() * 14;
-    const tex = windowTexture(i * 31 + 3, Math.round(w * 4), Math.round(h * 4), i % 3 === 0 ? '#ff007c' : '#7dcfff');
-    const tower = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.9, color: 0x0a0a11, roughness: 0.9}),
-    );
-    tower.position.set(x, h / 2, z);
-    g.add(tower);
-    // Neon sign strips on some towers
-    if (rand() > 0.55) {
-      const color = rand() > 0.5 ? PALETTE.pink : PALETTE.cyan;
-      const strip = box(0.12, 1.2 + rand() * 2.5, 0.12, glow(color, 3), x + w / 2 + 0.07, h * 0.6, z + d / 2 + 0.07);
-      g.add(strip);
-    }
-    if (rand() > 0.7) {
-      const sign = box(w * 0.7, 0.35, 0.05, glow(rand() > 0.5 ? PALETTE.amber : PALETTE.green, 2.6), x, h * 0.85, z + d / 2 + 0.05);
-      g.add(sign);
-    }
+  // Row A: near-mid towers (z -14..-22), taller, with billboards
+  for (let i = 0; i < 16; i++) {
+    const w = 1.8 + rand() * 2.6;
+    const h = 6 + rand() * 12;
+    const d = 1.8 + rand() * 2.2;
+    const x = -24 + i * 3.3 + rand() * 1.4;
+    const z = -14 - rand() * 8;
+    g.add(tower(i * 31 + 3, x, z, w, d, h, i % 3 === 0 ? '#ff5aa7' : '#7dcfff', 0.6 + rand() * 0.25));
+  }
+  // Row B: far towers (z -28..-40), taller still, dimmer
+  for (let i = 0; i < 22; i++) {
+    const w = 1.6 + rand() * 2.2;
+    const h = 9 + rand() * 18;
+    const d = 1.6 + rand() * 2;
+    const x = -32 + i * 3.0 + rand() * 1.2;
+    const z = -28 - rand() * 12;
+    g.add(tower(i * 17 + 101, x, z, w, d, h, i % 4 === 0 ? '#ff5aa7' : '#7dcfff', 0.45 + rand() * 0.3));
+  }
+  // Row C: distant megastructures (z -50..-60) — silhouettes with sparse lights
+  for (let i = 0; i < 9; i++) {
+    const w = 4 + rand() * 6;
+    const h = 18 + rand() * 22;
+    const x = -40 + i * 10 + rand() * 4;
+    const z = -50 - rand() * 10;
+    g.add(tower(i * 53 + 400, x, z, w, w * 0.8, h, '#7dcfff', 0.2 + rand() * 0.2));
   }
   // Mesas on the horizon flanks
-  const mesaMat = mat(0x0c0c14, {roughness: 1});
-  for (const [x, w, h] of [[-30, 14, 5], [-16, 8, 3.4], [22, 10, 4.2], [33, 16, 6]] as const) {
+  const mesaMat = mat(0x0a0a12, {roughness: 1});
+  for (const [x, w, h] of [[-38, 16, 6], [-20, 9, 3.6], [26, 11, 4.4], [40, 18, 7]] as const) {
     const mesa = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.6, w, h, 7), mesaMat);
-    mesa.position.set(x, h / 2 - 0.2, -34);
+    mesa.position.set(x, h / 2 - 0.2, -46);
     g.add(mesa);
+  }
+  // Ground-level light pollution: warm haze planes hugging the skyline base
+  for (let i = 0; i < 3; i++) {
+    const haze = new THREE.Mesh(
+      new THREE.PlaneGeometry(90, 6 + i * 3),
+      new THREE.MeshBasicMaterial({
+        color: i === 1 ? 0x3a1233 : 0x1e1a33,
+        transparent: true,
+        opacity: 0.32 - i * 0.08,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    haze.position.set(0, 3 + i * 2.5, -26 - i * 8);
+    g.add(haze);
   }
   return g;
 }
@@ -291,17 +437,26 @@ function buildGround(): THREE.Mesh {
     `,
     fragmentShader: `
       uniform float uTime; uniform vec3 uCyan; uniform vec3 uPink; varying vec3 vPos;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       void main(){
         vec2 p = vPos.xy;
+        // fine grid, fading with distance
         float gx = abs(fract(p.x * 0.5) - 0.5) / fwidth(p.x * 0.5);
-        float gy = abs(fract(p.y * 0.5 + uTime * 0.08) - 0.5) / fwidth(p.y * 0.5);
+        float gy = abs(fract(p.y * 0.5 + uTime * 0.06) - 0.5) / fwidth(p.y * 0.5);
         float line = 1.0 - min(min(gx, gy), 1.0);
         float dist = length(p) / 60.0;
-        float fade = smoothstep(1.0, 0.15, dist);
-        vec3 col = mix(uCyan, uPink, smoothstep(-20.0, 20.0, p.x)) * line * 0.9;
-        vec3 base = vec3(0.05, 0.05, 0.08);
-        float wet = 0.18 * (1.0 - dist);
-        gl_FragColor = vec4(base * wet + col, (line * 0.85 + 0.35) * fade);
+        float fade = smoothstep(1.0, 0.12, dist);
+        // wet asphalt: dark base with vertical streak reflections of the skyline
+        vec3 base = vec3(0.035, 0.036, 0.055);
+        float streakNoise = hash(vec2(floor(p.x * 1.7), 0.0));
+        float streak = smoothstep(0.55, 1.0, streakNoise) * smoothstep(-5.0, -30.0, p.y) * (0.6 + 0.4 * sin(uTime * 0.7 + p.x));
+        vec3 reflectCol = mix(uPink, uCyan, hash(vec2(floor(p.x * 1.7), 1.0))) * streak * 0.55;
+        // ripple shimmer
+        float ripple = 0.5 + 0.5 * sin(p.y * 6.0 + uTime * 2.2 + hash(floor(p.xy)) * 6.28);
+        reflectCol *= 0.75 + 0.25 * ripple;
+        vec3 gridCol = mix(uCyan, uPink, smoothstep(-20.0, 20.0, p.x)) * line * 0.55;
+        vec3 col = base + reflectCol + gridCol;
+        gl_FragColor = vec4(col, (0.55 + line * 0.45) * fade);
       }
     `,
   });
@@ -318,12 +473,12 @@ function buildRain(count: number): THREE.LineSegments {
     const x = (Math.random() - 0.5) * 40;
     const y = Math.random() * 18;
     const z = -6 + (Math.random() - 0.5) * 30;
-    positions.set([x, y, z, x + 0.05, y - 0.35, z], i * 6);
+    positions.set([x, y, z, x + 0.08, y - 0.55, z], i * 6);
     velocities[i] = 6 + Math.random() * 6;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({color: PALETTE.cyan, transparent: true, opacity: 0.28});
+  const material = new THREE.LineBasicMaterial({color: 0x9fc6e8, transparent: true, opacity: 0.22});
   const rain = new THREE.LineSegments(geometry, material);
   rain.userData.velocities = velocities;
   return rain;
@@ -360,12 +515,12 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     const renderer = new THREE.WebGLRenderer({canvas, antialias: true, powerPreference: 'high-performance'});
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.95;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(PALETTE.ink);
-    scene.fog = new THREE.FogExp2(PALETTE.ink, 0.032);
+    scene.fog = new THREE.FogExp2(0x100a16, 0.026);
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 120);
 
@@ -389,10 +544,11 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     sky.position.set(0, 18, -58);
     scene.add(sky);
 
-    scene.add(buildCity());
+    const city = buildCity();
+    scene.add(city);
     const ground = buildGround();
     scene.add(ground);
-    const rain = buildRain(reduceMotion ? 0 : 1400);
+    const rain = buildRain(reduceMotion ? 0 : 2600);
     scene.add(rain);
     const dust = buildDust(reduceMotion ? 0 : 220);
     scene.add(dust);
@@ -444,7 +600,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
 
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.5, 0.72);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.85, 0.6, 0.68);
     composer.addPass(bloom);
 
     const resize = () => {
@@ -503,6 +659,13 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
           if (Math.random() > 0.992) f.value = 0.6 + Math.random() * 0.4;
         }
         (ground.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+        if (Math.floor(t * 60) % 6 === 0) {
+          city.traverse(obj => {
+            const m = obj as THREE.Mesh;
+            if (m.userData.beacon) ((m.material as THREE.MeshStandardMaterial).emissiveIntensity = (Math.sin(t * 2.4 + m.position.x) > 0.6 ? 4 : 0.2));
+            if (m.userData.billboard) ((m.material as THREE.MeshBasicMaterial).opacity = Math.random() > 0.97 ? 0.35 : 1), ((m.material as THREE.MeshBasicMaterial).transparent = true);
+          });
+        }
         cactus.children.forEach((c, i) => {
           const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
           if (m?.emissive) m.emissiveIntensity = 0.9 + Math.sin(t * 9 + i) * 0.12 + (Math.random() > 0.985 ? -0.7 : 0);
@@ -520,7 +683,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
               const x = (Math.random() - 0.5) * 40;
               const z = -6 + (Math.random() - 0.5) * 30;
               arr[o] = x; arr[o + 1] = 16 + Math.random() * 3; arr[o + 2] = z;
-              arr[o + 3] = x + 0.05; arr[o + 4] = arr[o + 1] - 0.35; arr[o + 5] = z;
+              arr[o + 3] = x + 0.08; arr[o + 4] = arr[o + 1] - 0.55; arr[o + 5] = z;
             }
           }
           rainPositions.needsUpdate = true;

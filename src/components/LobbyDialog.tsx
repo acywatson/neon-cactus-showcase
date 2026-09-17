@@ -11,9 +11,10 @@ import {HStack, VStack} from '@astryxdesign/core/Stack';
 import {StatusDot} from '@astryxdesign/core/StatusDot';
 import {Text} from '@astryxdesign/core/Text';
 import {TextInput} from '@astryxdesign/core/TextInput';
-import {Copy, Radio, Users} from 'lucide-react';
+import {Copy, Play, Radio, Users, WifiOff} from 'lucide-react';
 import {
   createRoom,
+  isOnlinePlayAvailable,
   joinRoom,
   type RoomConnection,
 } from '../multiplayer/client';
@@ -21,11 +22,12 @@ import {
 type LobbyDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  onPlaySolo?: () => void;
 };
 
 type LobbyMode = 'choose' | 'host' | 'join';
 
-export function LobbyDialog({isOpen, onOpenChange}: LobbyDialogProps) {
+export function LobbyDialog({isOpen, onOpenChange, onPlaySolo}: LobbyDialogProps) {
   const [mode, setMode] = useState<LobbyMode>('choose');
   const [joinCode, setJoinCode] = useState('');
   const [roomCode, setRoomCode] = useState('');
@@ -72,13 +74,48 @@ export function LobbyDialog({isOpen, onOpenChange}: LobbyDialogProps) {
         header={
           <DialogHeader
             title="Co-op lobby"
-            subtitle="Host two players now; the protocol reserves four slots."
+            subtitle={
+              isOnlinePlayAvailable
+                ? 'Host two players now; the protocol reserves four slots.'
+                : 'Online rooms are not live on this build yet.'
+            }
             onOpenChange={close}
           />
         }
         content={
           <LayoutContent>
-            {mode === 'choose' ? (
+            {mode === 'choose' && !isOnlinePlayAvailable ? (
+              <VStack gap={4}>
+                <HStack gap={2} vAlign="center">
+                  <StatusDot variant="warning" label="Offline build" />
+                  <Text weight="semibold">Room server not deployed</Text>
+                </HStack>
+                <Text color="secondary">
+                  This build ships static-only, so cross-device rooms are switched off. The
+                  2–4 player protocol is in the repo and turns on with a single infrastructure
+                  flag. Until then, ride solo in the browser demo.
+                </Text>
+                <Button
+                  label="Play the demo solo"
+                  variant="primary"
+                  size="lg"
+                  width="100%"
+                  icon={<Play size={18} />}
+                  onClick={() => {
+                    close();
+                    onPlaySolo?.();
+                  }}
+                />
+                <HStack gap={2} vAlign="center">
+                  <WifiOff size={14} aria-hidden="true" />
+                  <Text type="supporting" color="secondary">
+                    Enable with `cdk deploy -c multiplayer=true` and `VITE_MULTIPLAYER_ENABLED=true`.
+                  </Text>
+                </HStack>
+              </VStack>
+            ) : null}
+
+            {mode === 'choose' && isOnlinePlayAvailable ? (
               <VStack gap={4}>
                 <Text>Choose how you want to enter the session.</Text>
                 {error ? <Text className="error-copy">{error}</Text> : null}
