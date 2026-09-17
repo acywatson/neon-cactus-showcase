@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import {BokehPass} from 'three/examples/jsm/postprocessing/BokehPass.js';
+import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import {Reflector} from 'three/examples/jsm/objects/Reflector.js';
 
 /**
  * Cinematic hero: a generated Shinjuku Mesa skyline at last light, rain,
@@ -193,20 +196,27 @@ function buildTurntable(color: number): THREE.Group {
 
 function buildCactusSign(): THREE.Group {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 2.4, 10), glow(0x7fbf4a, 0.9));
-  trunk.position.y = 1.2;
-  g.add(trunk);
+  const glass = new THREE.MeshStandardMaterial({color: 0x2a5a1e, emissive: 0x4fa832, emissiveIntensity: 0.28, roughness: 0.3, transparent: true, opacity: 0.85});
+  const core = new THREE.MeshBasicMaterial({color: 0xdcffb0, toneMapped: false});
+  const tube = (r: number, h: number, x: number, y: number, rz = 0) => {
+    const outer = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), glass);
+    outer.position.set(x, y, 0);
+    outer.rotation.z = rz;
+    g.add(outer);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.3, r * 0.3, h * 0.98, 6), core);
+    inner.position.set(x, y, 0);
+    inner.rotation.z = rz;
+    inner.userData.neonCore = true;
+    g.add(inner);
+  };
+  tube(0.09, 2.4, 0, 1.2);
   for (const [side, y] of [[-1, 1.1], [1, 1.5]] as const) {
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.5, 8), glow(0x7fbf4a, 0.9));
-    arm.rotation.z = Math.PI / 2;
-    arm.position.set(side * 0.3, y, 0);
-    g.add(arm);
-    const up = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.55, 8), glow(0x7fbf4a, 0.9));
-    up.position.set(side * 0.52, y + 0.28, 0);
-    g.add(up);
+    tube(0.06, 0.5, side * 0.3, y, Math.PI / 2);
+    tube(0.06, 0.55, side * 0.52, y + 0.28);
   }
-  const light = new THREE.PointLight(PALETTE.green, 5, 7, 1.5);
+  const light = new THREE.PointLight(PALETTE.green, 3.2, 7, 1.6);
   light.position.set(0, 1.6, 0.4);
+  light.userData.neonLight = true;
   g.add(light);
   return g;
 }
@@ -231,9 +241,14 @@ function windowTexture(seed: number, cols: number, rows: number, tint: string, l
       const v = rand();
       if (floorLit && v > 0.25) {
         const w = v > 0.96 ? tint : floorWarm ? '#d9b27a' : '#8fa4c9';
+        // recessed pane: dim outer ring, bright inner, top edge darker (overhang)
         ctx.fillStyle = w;
+        ctx.globalAlpha = (0.35 + rand() * 0.6) * 0.45;
+        ctx.fillRect(x * 8 + 1, y * 8 + 1, 6, 6);
         ctx.globalAlpha = 0.35 + rand() * 0.6;
-        ctx.fillRect(x * 8 + 2, y * 8 + 2, 4, 4);
+        ctx.fillRect(x * 8 + 2, y * 8 + 3, 4, 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x * 8 + 1, y * 8 + 1, 6, 1);
         // slight interior detail
         if (rand() > 0.7) {
           ctx.fillStyle = '#05060a';
@@ -292,11 +307,11 @@ function tower(seed: number, x: number, z: number, w: number, d: number, h: numb
   const addBlock = (bx: number, by: number, bz: number, bw: number, bh: number, bd: number) => {
     const tex = windowTexture(seed + Math.round(by * 13), Math.max(4, Math.round(bw * 5)), Math.max(4, Math.round(bh * 3.2)), tint, lit);
     const mats = [
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.35, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.35, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
       facade, facade,
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.35, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.35, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
     ];
     const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mats);
     m.position.set(bx, by + bh / 2, bz);
@@ -422,6 +437,51 @@ function buildCity(): THREE.Group {
   return g;
 }
 
+function buildWetStreet(width: number, height: number): Reflector {
+  const reflector = new Reflector(new THREE.PlaneGeometry(120, 120), {
+    clipBias: 0.003,
+    textureWidth: Math.max(512, Math.round(width * 0.5)),
+    textureHeight: Math.max(256, Math.round(height * 0.5)),
+    color: 0x9aa0c0,
+  });
+  reflector.rotation.x = -Math.PI / 2;
+  reflector.position.y = -0.035;
+  reflector.renderOrder = -1;
+  const material = reflector.material as THREE.ShaderMaterial;
+  material.uniforms.uTime = {value: 0};
+  material.transparent = true;
+  material.fragmentShader = `
+    uniform vec3 color; uniform sampler2D tDiffuse; uniform float uTime;
+    varying vec4 vUv; varying vec3 vWorld;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
+      return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
+    void main() {
+      vec4 uv = vUv;
+      // ripples + rain-drop rings distort the reflection
+      float r1 = noise(vWorld.xz * 2.2 + vec2(uTime * 0.35, -uTime * 0.2));
+      float r2 = noise(vWorld.xz * 6.0 - vec2(uTime * 0.6, uTime * 0.4));
+      uv.xy += (vec2(r1, r2) - 0.5) * 0.045 * uv.w;
+      vec4 base = texture2DProj(tDiffuse, uv);
+      // wetness mask: puddles are mirror-like, asphalt between is dull. Big soft blobs + fine grit.
+      float puddle = smoothstep(0.42, 0.62, noise(vWorld.xz * 0.28 + 3.7));
+      float grit = noise(vWorld.xz * 14.0);
+      float wet = mix(0.35, 0.95, puddle) * (0.85 + 0.15 * grit);
+      // fresnel: reflections stronger at grazing angles (far)
+      float dist = length(vWorld.xz);
+      float grazing = smoothstep(2.0, 24.0, dist);
+      wet *= 0.7 + 0.3 * grazing;
+      vec3 asphalt = vec3(0.030, 0.031, 0.048);
+      vec3 col = mix(asphalt, base.rgb * color, wet);
+      // distance fade into fog
+      float fade = smoothstep(58.0, 12.0, dist);
+      gl_FragColor = vec4(col, fade);
+    }`;
+  material.vertexShader = material.vertexShader.replace('varying vec4 vUv;', 'varying vec4 vUv; varying vec3 vWorld;')
+    .replace('vUv = textureMatrix * vec4( position, 1.0 );', 'vUv = textureMatrix * vec4( position, 1.0 ); vWorld = (modelMatrix * vec4(position, 1.0)).xyz;');
+  return reflector;
+}
+
 function buildGround(): THREE.Mesh {
   const geometry = new THREE.PlaneGeometry(120, 120, 1, 1);
   const material = new THREE.ShaderMaterial({
@@ -447,7 +507,7 @@ function buildGround(): THREE.Mesh {
         float dist = length(p) / 60.0;
         float fade = smoothstep(1.0, 0.12, dist);
         // wet asphalt: dark base with vertical streak reflections of the skyline
-        vec3 base = vec3(0.035, 0.036, 0.055);
+        vec3 base = vec3(0.0);
         float streakNoise = hash(vec2(floor(p.x * 1.7), 0.0));
         float streak = smoothstep(0.55, 1.0, streakNoise) * smoothstep(-5.0, -30.0, p.y) * (0.6 + 0.4 * sin(uTime * 0.7 + p.x));
         vec3 reflectCol = mix(uPink, uCyan, hash(vec2(floor(p.x * 1.7), 1.0))) * streak * 0.55;
@@ -456,14 +516,40 @@ function buildGround(): THREE.Mesh {
         reflectCol *= 0.75 + 0.25 * ripple;
         vec3 gridCol = mix(uCyan, uPink, smoothstep(-20.0, 20.0, p.x)) * line * 0.22;
         vec3 col = base + reflectCol + gridCol;
-        gl_FragColor = vec4(col, (0.7 + line * 0.3) * fade);
+        gl_FragColor = vec4(col, (0.08 + line * 0.5) * fade);
       }
     `,
   });
   const ground = new THREE.Mesh(geometry, material);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.03;
+  ground.position.y = -0.02;
   return ground;
+}
+
+function lightCone(color: number, radiusTop: number, radiusBottom: number, height: number, opacity: number): THREE.Mesh {
+  const geometry = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 32, 1, true);
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    uniforms: {uColor: {value: new THREE.Color(color)}, uOpacity: {value: opacity}, uTime: {value: 0}},
+    vertexShader: `
+      varying vec2 vUv; varying vec3 vNormalW; varying vec3 vViewDir;
+      void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position,1.0);
+        vNormalW = normalize(mat3(modelMatrix) * normal); vViewDir = normalize(cameraPosition - wp.xyz);
+        gl_Position = projectionMatrix * viewMatrix * wp; }`,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uOpacity; uniform float uTime;
+      varying vec2 vUv; varying vec3 vNormalW; varying vec3 vViewDir;
+      void main(){
+        float rim = pow(1.0 - abs(dot(vNormalW, vViewDir)), 1.6);
+        float vert = smoothstep(0.0, 0.25, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+        float dust = 0.85 + 0.15 * sin(vUv.y * 40.0 - uTime * 1.5 + vUv.x * 12.0);
+        gl_FragColor = vec4(uColor, rim * vert * dust * uOpacity);
+      }`,
+  });
+  return new THREE.Mesh(geometry, material);
 }
 
 function buildRain(count: number): THREE.LineSegments {
@@ -515,12 +601,12 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     const renderer = new THREE.WebGLRenderer({canvas, antialias: true, powerPreference: 'high-performance'});
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.95;
+    renderer.toneMappingExposure = 1.15;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(PALETTE.ink);
-    scene.fog = new THREE.FogExp2(0x100a16, 0.03);
+    scene.fog = new THREE.FogExp2(0x120c1a, 0.022);
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 120);
 
@@ -549,8 +635,27 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
 
     const city = buildCity();
     scene.add(city);
+    const wet = buildWetStreet(canvas.clientWidth || 1440, canvas.clientHeight || 900);
+    scene.add(wet);
     const ground = buildGround();
     scene.add(ground);
+    // volumetric cones: cactus sign + a couple of billboard spills
+    const cones: THREE.Mesh[] = [];
+    const signCone = lightCone(PALETTE.green, 0.25, 2.2, 3.6, 0.07);
+    signCone.position.set(0, 2.2, -1.6);
+    cones.push(signCone);
+    city.traverse(obj => {
+      if ((obj as THREE.Mesh).userData.billboard && cones.length < 5) {
+        const m = obj as THREE.Mesh;
+        const wp = new THREE.Vector3();
+        m.getWorldPosition(wp);
+        const color = ((m.material as THREE.MeshBasicMaterial).map as THREE.CanvasTexture | null) ? 0xff5aa7 : PALETTE.cyan;
+        const cone = lightCone(color, 0.6, 6, wp.y * 1.4, 0.025);
+        cone.position.set(wp.x, wp.y * 0.55, wp.z + 3);
+        cone.rotation.x = 0.35;
+        cones.push(cone);
+      }
+    });
     const rain = buildRain(reduceMotion ? 0 : 2600);
     scene.add(rain);
     const dust = buildDust(reduceMotion ? 0 : 220);
@@ -576,6 +681,8 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     const cactus = buildCactusSign();
     cactus.position.set(0, 0, -1.6);
     stage.add(cactus);
+    stage.add(signCone);
+    cones.slice(1).forEach(c => scene.add(c));
 
     const sableTable = buildTurntable(PALETTE.cyan);
     sableTable.position.set(-1.2, 0, 0.1);
@@ -601,16 +708,46 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     });
     scene.add(stage);
 
+    const highTier = !reduceMotion && Math.min(window.devicePixelRatio, 2) * (canvas.clientWidth || 1440) >= 1200;
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.85, 0.6, 0.68);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.8, 0.62, 0.7);
     composer.addPass(bloom);
+    let bokeh: BokehPass | null = null;
+    if (highTier) {
+      bokeh = new BokehPass(scene, camera, {focus: 7.6, aperture: 0.00012, maxblur: 0.006});
+      composer.addPass(bokeh);
+    }
+    // film finish: grain + chromatic aberration + vignette in one cheap pass
+    const finish = new ShaderPass({
+      uniforms: {tDiffuse: {value: null}, uTime: {value: 0}, uGrain: {value: highTier ? 0.06 : 0.035}},
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `
+        uniform sampler2D tDiffuse; uniform float uTime; uniform float uGrain; varying vec2 vUv;
+        float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+        void main(){
+          vec2 d = vUv - 0.5;
+          float r2 = dot(d, d);
+          vec2 ca = d * r2 * 0.018;
+          vec3 col;
+          col.r = texture2D(tDiffuse, vUv + ca).r;
+          col.g = texture2D(tDiffuse, vUv).g;
+          col.b = texture2D(tDiffuse, vUv - ca).b;
+          float g = (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * uGrain;
+          col += g * (0.6 + 0.4 * (1.0 - col));
+          float vig = 1.0 - smoothstep(0.35, 0.95, sqrt(r2) * 1.25);
+          col *= 0.82 + 0.18 * vig;
+          gl_FragColor = vec4(col, 1.0);
+        }`,
+    });
+    composer.addPass(finish);
 
     const resize = () => {
       const {clientWidth: w, clientHeight: h} = canvas.parentElement ?? canvas;
       if (!w || !h) return;
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
+      bokeh?.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       const wide = camera.aspect > 1.15;
@@ -662,6 +799,8 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
           if (Math.random() > 0.992) f.value = 0.6 + Math.random() * 0.4;
         }
         (ground.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+        (wet.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+        for (const c of cones) (c.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
         if (Math.floor(t * 60) % 6 === 0) {
           city.traverse(obj => {
             const m = obj as THREE.Mesh;
@@ -669,9 +808,11 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
             if (m.userData.billboard) ((m.material as THREE.MeshBasicMaterial).opacity = Math.random() > 0.97 ? 0.35 : 1), ((m.material as THREE.MeshBasicMaterial).transparent = true);
           });
         }
+        const dropout = Math.random() > 0.987;
         cactus.children.forEach((c, i) => {
-          const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-          if (m?.emissive) m.emissiveIntensity = 0.9 + Math.sin(t * 9 + i) * 0.12 + (Math.random() > 0.985 ? -0.7 : 0);
+          const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+          if ((c as THREE.Mesh).userData.neonCore && m) m.opacity = dropout ? 0.35 : 0.9 + Math.sin(t * 11 + i) * 0.08, (m.transparent = true);
+          if (c.userData.neonLight) (c as THREE.PointLight).intensity = dropout ? 1.2 : 3.2 + Math.sin(t * 11) * 0.2;
         });
         if (rainPositions) {
           const arr = rainPositions.array as Float32Array;
@@ -696,6 +837,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
         camera.position.x += (Math.sin(t * 0.18) * 0.12 - (camera.position.x - (camera.aspect > 1.15 ? 0.8 : 0))) * 0.02;
       }
 
+      (finish.uniforms.uTime as {value: number}).value = t % 100;
       composer.render();
       if (!readyFired) {
         readyFired = true;
