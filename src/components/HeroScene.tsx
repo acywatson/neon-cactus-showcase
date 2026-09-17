@@ -233,7 +233,7 @@ function windowTexture(seed: number, cols: number, rows: number, tint: string, l
         const w = v > 0.96 ? tint : floorWarm ? '#d9b27a' : '#8fa4c9';
         ctx.fillStyle = w;
         ctx.globalAlpha = 0.35 + rand() * 0.6;
-        ctx.fillRect(x * 8 + 1, y * 8 + 1, 6, 5);
+        ctx.fillRect(x * 8 + 2, y * 8 + 2, 4, 4);
         // slight interior detail
         if (rand() > 0.7) {
           ctx.fillStyle = '#05060a';
@@ -290,13 +290,13 @@ function tower(seed: number, x: number, z: number, w: number, d: number, h: numb
   const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const facade = new THREE.MeshStandardMaterial({color: 0x0a0b12, roughness: 0.55, metalness: 0.35});
   const addBlock = (bx: number, by: number, bz: number, bw: number, bh: number, bd: number) => {
-    const tex = windowTexture(seed + Math.round(by * 13), Math.max(2, Math.round(bw * 3)), Math.max(2, Math.round(bh * 3)), tint, lit);
+    const tex = windowTexture(seed + Math.round(by * 13), Math.max(4, Math.round(bw * 5)), Math.max(4, Math.round(bh * 3.2)), tint, lit);
     const mats = [
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
       facade, facade,
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
-      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 1.25, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
+      new THREE.MeshStandardMaterial({map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, color: 0x0a0b12, roughness: 0.5, metalness: 0.3}),
     ];
     const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mats);
     m.position.set(bx, by + bh / 2, bz);
@@ -374,11 +374,11 @@ function buildCity(): THREE.Group {
   // Row A: near-mid towers (z -14..-22), taller, with billboards
   for (let i = 0; i < 16; i++) {
     const w = 1.8 + rand() * 2.6;
-    const h = 6 + rand() * 12;
+    const h = 4 + rand() * 7;
     const d = 1.8 + rand() * 2.2;
-    const x = -24 + i * 3.3 + rand() * 1.4;
-    const z = -14 - rand() * 8;
-    g.add(tower(i * 31 + 3, x, z, w, d, h, i % 3 === 0 ? '#ff5aa7' : '#7dcfff', 0.6 + rand() * 0.25));
+    const x = -26 + i * 3.6 + rand() * 1.4;
+    const z = -22 - rand() * 8;
+    g.add(tower(i * 31 + 3, x, z, w, d, h, i % 3 === 0 ? '#ff5aa7' : '#7dcfff', 0.45 + rand() * 0.2));
   }
   // Row B: far towers (z -28..-40), taller still, dimmer
   for (let i = 0; i < 22; i++) {
@@ -386,22 +386,22 @@ function buildCity(): THREE.Group {
     const h = 9 + rand() * 18;
     const d = 1.6 + rand() * 2;
     const x = -32 + i * 3.0 + rand() * 1.2;
-    const z = -28 - rand() * 12;
-    g.add(tower(i * 17 + 101, x, z, w, d, h, i % 4 === 0 ? '#ff5aa7' : '#7dcfff', 0.45 + rand() * 0.3));
+    const z = -36 - rand() * 12;
+    g.add(tower(i * 17 + 101, x, z, w, d, h, i % 4 === 0 ? '#ff5aa7' : '#7dcfff', 0.35 + rand() * 0.25));
   }
   // Row C: distant megastructures (z -50..-60) — silhouettes with sparse lights
   for (let i = 0; i < 9; i++) {
     const w = 4 + rand() * 6;
     const h = 18 + rand() * 22;
     const x = -40 + i * 10 + rand() * 4;
-    const z = -50 - rand() * 10;
+    const z = -60 - rand() * 12;
     g.add(tower(i * 53 + 400, x, z, w, w * 0.8, h, '#7dcfff', 0.2 + rand() * 0.2));
   }
   // Mesas on the horizon flanks
   const mesaMat = mat(0x0a0a12, {roughness: 1});
   for (const [x, w, h] of [[-38, 16, 6], [-20, 9, 3.6], [26, 11, 4.4], [40, 18, 7]] as const) {
     const mesa = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.6, w, h, 7), mesaMat);
-    mesa.position.set(x, h / 2 - 0.2, -46);
+    mesa.position.set(x, h / 2 - 0.2, -56);
     g.add(mesa);
   }
   // Ground-level light pollution: warm haze planes hugging the skyline base
@@ -416,7 +416,7 @@ function buildCity(): THREE.Group {
         blending: THREE.AdditiveBlending,
       }),
     );
-    haze.position.set(0, 3 + i * 2.5, -26 - i * 8);
+    haze.position.set(0, 3 + i * 2.5, -30 - i * 10);
     g.add(haze);
   }
   return g;
@@ -454,9 +454,9 @@ function buildGround(): THREE.Mesh {
         // ripple shimmer
         float ripple = 0.5 + 0.5 * sin(p.y * 6.0 + uTime * 2.2 + hash(floor(p.xy)) * 6.28);
         reflectCol *= 0.75 + 0.25 * ripple;
-        vec3 gridCol = mix(uCyan, uPink, smoothstep(-20.0, 20.0, p.x)) * line * 0.55;
+        vec3 gridCol = mix(uCyan, uPink, smoothstep(-20.0, 20.0, p.x)) * line * 0.22;
         vec3 col = base + reflectCol + gridCol;
-        gl_FragColor = vec4(col, (0.55 + line * 0.45) * fade);
+        gl_FragColor = vec4(col, (0.7 + line * 0.3) * fade);
       }
     `,
   });
@@ -520,7 +520,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(PALETTE.ink);
-    scene.fog = new THREE.FogExp2(0x100a16, 0.026);
+    scene.fog = new THREE.FogExp2(0x100a16, 0.03);
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 120);
 
@@ -529,14 +529,17 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
       new THREE.PlaneGeometry(160, 60),
       new THREE.ShaderMaterial({
         depthWrite: false,
-        uniforms: {uTop: {value: new THREE.Color(0x0b0b14)}, uMid: {value: new THREE.Color(0x1a1b26)}, uHaze: {value: new THREE.Color(0x3a1233)}},
+        uniforms: {uTop: {value: new THREE.Color(0x07070e)}, uMid: {value: new THREE.Color(0x161728)}, uHaze: {value: new THREE.Color(0x4a1a3c)}},
         vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
         fragmentShader: `
           uniform vec3 uTop; uniform vec3 uMid; uniform vec3 uHaze; varying vec2 vUv;
           void main(){
             float t = vUv.y;
-            vec3 c = mix(uHaze, uMid, smoothstep(0.0, 0.28, t));
-            c = mix(c, uTop, smoothstep(0.28, 1.0, t));
+            vec3 c = mix(uHaze, uMid, smoothstep(0.0, 0.34, t));
+            c = mix(c, uTop, smoothstep(0.34, 1.0, t));
+            // low cloud deck catching the city light
+            float cloud = smoothstep(0.16, 0.24, t) * (1.0 - smoothstep(0.24, 0.40, t));
+            c += vec3(0.20, 0.06, 0.14) * cloud * 0.55;
             gl_FragColor = vec4(c, 1.0);
           }`,
       }),
@@ -612,12 +615,12 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
       camera.updateProjectionMatrix();
       const wide = camera.aspect > 1.15;
       if (wide) {
-        stage.position.set(4.6, 0, 0);
-        stage.scale.setScalar(1);
+        stage.position.set(3.9, 0, 0);
+        stage.scale.setScalar(0.92);
         sableTable.position.set(-1.1, 0, 0.5);
-        koyoteTable.position.set(1.2, 0, -0.3);
-        camera.position.set(0.8, 1.9, 7.0);
-        camera.lookAt(3.0, 1.45, 0);
+        koyoteTable.position.set(1.15, 0, -0.3);
+        camera.position.set(0.9, 1.9, 7.6);
+        camera.lookAt(2.7, 1.9, -4);
       } else {
         stage.position.set(0, 0, -4);
         stage.scale.setScalar(0.56);
