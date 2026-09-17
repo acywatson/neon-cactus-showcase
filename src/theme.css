@@ -743,6 +743,21 @@
     max-width: var(--page-width);
   }
 
+  .site-footer > .astryx-stack {
+    align-items: center;
+  }
+
+  .footer-links .astryx-link {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .footer-links .astryx-link .astryx-text {
+    color: inherit;
+    font: inherit;
+  }
+
   .site-footer strong {
     font-family: var(--font-family-heading);
     font-size: var(--font-size-xl);

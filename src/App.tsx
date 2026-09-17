@@ -317,10 +317,13 @@ export function App() {
             <strong>NEON CACTUS</strong>
             <Text type="supporting">© 2086 Last Call Games. No clean getaways.</Text>
           </VStack>
-          <HStack gap={4}>
+          <HStack gap={5} vAlign="center" className="footer-links">
             <Link href="#top" color="inherit">Back to top</Link>
             <Link href="https://github.com/acywatson/neon-cactus-showcase" isExternalLink color="inherit">
-              <Github size={16} aria-hidden="true" /> Source
+              <HStack gap={1.5} vAlign="center">
+                <Github size={16} aria-hidden="true" />
+                <Text>Source</Text>
+              </HStack>
             </Link>
           </HStack>
         </HStack>

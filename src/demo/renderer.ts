@@ -36,6 +36,7 @@ export type PlayerState = {
   moving: boolean;
   flash: number; // muzzle flash frames remaining
   recoil: number;
+  crouching: boolean;
 };
 
 export type EnemyKind = 'skull' | 'hound' | 'crawler';
@@ -136,6 +137,42 @@ const PLAYER_TOP = [
   '....CcCCCCC...NNCCC.....',
   '....CCCCC......NCCC.....',
   '....CCCC........CCC.....',
+];
+
+// Crouch: whole-body pose (24 wide). Hat and head drop, torso leans forward, rifle levelled at knee height.
+const PLAYER_CROUCH = [
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '.........HHHHHHH........',
+  '........HhhHHHHHH.......',
+  '........HHHHHHHHH.......',
+  '...HHHHHHHHHHHHHHHHHH...',
+  '..HHHHHHHHHHHHHHHHHHHH..',
+  '....KKKKKHHHHHHKKKKK....',
+  '.........SSSSSS.........',
+  '........SSKEESSs........',
+  '........SSSSSSSs........',
+  '.........sSSSSs.........',
+  '........RRRRRRRR........',
+  '.......RRrRRRRrRR.......',
+  '.....CCCCCCCCCCCCCC.....',
+  '....CcCCCCCCCCCCCCCMM...',
+  '....CcCCCTCCCCCCCCCMMGGG',
+  '....CcCCCTCCCCCCCCmMGGGG',
+  '....CcCCCTCCCCCCCCmM.GG.',
+  '....CcCCCCCCCCCCCNm.....',
+  '....CcCCCCCCCCCCNCC.....',
+  '...CCcCCCCCCCLLLLLLL....',
+  '..CCCCCCCCCCLLL...LLL...',
+  '..CCCCCCCCCLLL.....LLL..',
+  '.LLLCCCCCCLLL.......LLL.',
+  'LLL..LLLLLLL.........BBB',
+  'BBBB.BBBB............BBB',
 ];
 
 const LEGS = {
@@ -690,18 +727,21 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
   function drawPlayer(pl: PlayerState, t: number) {
     const scale = 2;
     const runFrame = Math.floor(pl.runPhase) % 8;
-    const rows = [...PLAYER_TOP, ...(pl.y < FLOOR - 0.5 ? LEGS.jump : pl.moving ? LEGS.run[runFrame] : LEGS.stand)];
+    const crouched = pl.crouching && pl.y >= FLOOR - 0.5;
+    const rows = crouched
+      ? PLAYER_CROUCH
+      : [...PLAYER_TOP, ...(pl.y < FLOOR - 0.5 ? LEGS.jump : pl.moving ? LEGS.run[runFrame] : LEGS.stand)];
     const spriteH = rows.length * scale;
     const px = Math.round(pl.x * S) - 24;
     const py = Math.round(pl.y * S) - spriteH;
     const airborne = pl.y < FLOOR - 0.5;
-    const bob = !airborne && pl.moving && (runFrame === 3 || runFrame === 7) ? -1 : !airborne && pl.moving && (runFrame === 1 || runFrame === 5) ? 1 : 0;
+    const bob = crouched ? 0 : !airborne && pl.moving && (runFrame === 3 || runFrame === 7) ? -1 : !airborne && pl.moving && (runFrame === 1 || runFrame === 5) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
     ctx.ellipse(px + 24, FLOOR_LOW + 1, airborne ? 12 : 17, 3, 0, 0, Math.PI * 2);
     ctx.fill();
     const recoil = Math.round(pl.recoil);
-    const key = `player-${airborne ? 'j' : pl.moving ? runFrame : 's'}`;
+    const key = `player-${crouched ? 'c' : airborne ? 'j' : pl.moving ? runFrame : 's'}`;
     const body = sprite(key, rows, scale);
     // rim light from the city (right side, cyan) — draw tinted copy offset by 1px
     ctx.drawImage(body, px - recoil, py + bob);
@@ -722,12 +762,12 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
     // implant eye pulse
     glow.fillStyle = p.cyan;
     glow.globalAlpha = 0.6 + 0.4 * Math.sin(t * 0.006);
-    glow.fillRect(px - recoil + 22, py + bob + 18, 6, 3);
+    glow.fillRect(px - recoil + 22, py + bob + (crouched ? 28 : 18), 6, 3);
     glow.globalAlpha = 1;
     if (pl.flash > 0) {
       const frame = MUZZLE[pl.flash % 2];
       const mx = px + 48;
-      const my = py + 34 + bob;
+      const my = py + (crouched ? 42 : 34) + bob;
       ctx.drawImage(sprite(`muzzle-${pl.flash % 2}`, frame, 3), mx, my);
       glow.drawImage(sprite(`muzzle-${pl.flash % 2}`, frame, 3, true), mx - 2, my - 2);
       glow.fillStyle = 'rgba(224,175,104,0.4)';
@@ -737,7 +777,7 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
       ctx.globalAlpha = 0.25;
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = p.amber;
-      ctx.fillRect(px + 20, py + 12, 28, spriteH - 14);
+      ctx.fillRect(px + 20, py + (crouched ? 20 : 12), 28, spriteH - (crouched ? 22 : 14));
       ctx.restore();
     }
   }
@@ -992,7 +1032,7 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
     out.fillStyle = p.paper;
     out.fillText(state.lost ? 'THE HELIX POSSE TOOK THE LAST CALL' : 'THE HELIX POSSE IS RIDING IN — DEFEND THE SALOON', WORLD_W / 2, WORLD_H / 2 + 30);
     out.fillStyle = 'rgba(192,202,245,0.6)';
-    out.fillText('A / D MOVE  ·  W JUMP  ·  SPACE FIRE', WORLD_W / 2, WORLD_H / 2 + 56);
+    out.fillText('A / D MOVE  ·  W JUMP  ·  S CROUCH  ·  SPACE FIRE', WORLD_W / 2, WORLD_H / 2 + 56);
     out.restore();
   }
 

@@ -4,7 +4,7 @@ import {Heading} from '@astryxdesign/core/Heading';
 import {Kbd} from '@astryxdesign/core/Kbd';
 import {HStack, VStack} from '@astryxdesign/core/Stack';
 import {Text} from '@astryxdesign/core/Text';
-import {ArrowLeft, ArrowRight, Crosshair, Play, RotateCcw} from 'lucide-react';
+import {ArrowDown, ArrowLeft, ArrowRight, Crosshair, Play, RotateCcw} from 'lucide-react';
 import type {DemoProps} from '../demo/types';
 import {
   createRenderer,
@@ -30,7 +30,7 @@ function token(canvas: HTMLCanvasElement, name: string, fallback: string): strin
 }
 
 function freshPlayer(): PlayerState {
-  return {x: 300, y: FLOOR, velocityY: 0, runPhase: 0, moving: false, flash: 0, recoil: 0};
+  return {x: 300, y: FLOOR, velocityY: 0, runPhase: 0, moving: false, flash: 0, recoil: 0, crouching: false};
 }
 
 export function DemoStage(_: DemoProps) {
@@ -42,10 +42,12 @@ export function DemoStage(_: DemoProps) {
   const dronesRef = useRef<DroneState[]>([]);
   const playerRef = useRef<PlayerState>(freshPlayer());
   const runningRef = useRef(false);
+  const crouchRef = useRef(false);
   const scoreRef = useRef(0);
   const breachesRef = useRef(0);
   const [isRunning, setIsRunning] = useState(false);
   const [hasLost, setHasLost] = useState(false);
+  const [isCrouchToggled, setIsCrouchToggled] = useState(false);
 
   const spawnWave = useCallback(() => {
     const kinds: EnemyKind[] = ['skull', 'skull', 'hound', 'skull', 'crawler', 'skull', 'hound', 'skull'];
@@ -65,7 +67,7 @@ export function DemoStage(_: DemoProps) {
     if (!runningRef.current || bulletsRef.current.length > 6) return;
     const player = playerRef.current;
     const x = player.x + 52;
-    const y = player.y - 76;
+    const y = player.y - (player.crouching && player.y >= FLOOR ? 30 : 76);
     bulletsRef.current.push({x, y, px: x});
     player.flash = 4;
     player.recoil = 2;
@@ -79,6 +81,7 @@ export function DemoStage(_: DemoProps) {
   const jump = useCallback(() => {
     const player = playerRef.current;
     if (player.y >= FLOOR) {
+      crouchRef.current = false;
       player.velocityY = JUMP_VELOCITY;
       rendererRef.current?.emitDust(player.x, FLOOR, 1);
     }
@@ -90,6 +93,8 @@ export function DemoStage(_: DemoProps) {
     scoreRef.current = 0;
     breachesRef.current = 0;
     spawnWave();
+    crouchRef.current = false;
+    setIsCrouchToggled(false);
     runningRef.current = true;
     setIsRunning(true);
     setHasLost(false);
@@ -99,7 +104,7 @@ export function DemoStage(_: DemoProps) {
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
       if (!runningRef.current) return;
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'KeyA', 'KeyD', 'KeyW', 'Space'].includes(event.code)) {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'].includes(event.code)) {
         event.preventDefault();
       }
       if (event.repeat) return;
@@ -145,9 +150,11 @@ export function DemoStage(_: DemoProps) {
       if (runningRef.current) {
         const left = keysRef.current.has('KeyA') || keysRef.current.has('ArrowLeft');
         const right = keysRef.current.has('KeyD') || keysRef.current.has('ArrowRight');
+        player.crouching = crouchRef.current || keysRef.current.has('KeyS') || keysRef.current.has('ArrowDown');
+        const speed = player.crouching ? MOVE_SPEED * 0.45 : MOVE_SPEED;
         player.moving = left !== right;
-        if (left) move(-MOVE_SPEED * dt);
-        if (right) move(MOVE_SPEED * dt);
+        if (left) move(-speed * dt);
+        if (right) move(speed * dt);
         if (player.moving && player.y >= FLOOR) {
           player.runPhase += dt * 16;
           dustTimer -= dt;
@@ -250,6 +257,7 @@ export function DemoStage(_: DemoProps) {
           <HStack gap={2} wrap="wrap">
             <Text type="supporting">Move</Text><Kbd keys="a+d" />
             <Text type="supporting">Jump</Text><Kbd keys="w" />
+            <Text type="supporting">Crouch</Text><Kbd keys="s" />
             <Text type="supporting">Fire</Text><Kbd keys="space" />
           </HStack>
         </HStack>
@@ -266,6 +274,16 @@ export function DemoStage(_: DemoProps) {
             <Button label="Move left" variant="secondary" isIconOnly icon={<ArrowLeft size={18} />} onClick={() => move(-42)} />
             <Button label="Move right" variant="secondary" isIconOnly icon={<ArrowRight size={18} />} onClick={() => move(42)} />
             <Button label="Jump" variant="secondary" isIconOnly icon={<Play className="jump-icon" size={18} />} onClick={jump} />
+            <Button
+              label={isCrouchToggled ? 'Stand up' : 'Crouch'}
+              variant={isCrouchToggled ? 'primary' : 'secondary'}
+              isIconOnly
+              icon={<ArrowDown size={18} />}
+              onClick={() => {
+                crouchRef.current = !crouchRef.current;
+                setIsCrouchToggled(crouchRef.current);
+              }}
+            />
             <Button label="Fire" variant="secondary" isIconOnly icon={<Crosshair size={18} />} onClick={fire} />
           </HStack>
           <Button
