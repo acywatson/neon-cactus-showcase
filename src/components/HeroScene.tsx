@@ -24,149 +24,154 @@ const PALETTE = {
   chrome: 0xb8c4d6,
 } as const;
 
-type OutlawSpec = {
-  coat: number;
-  accent: number;
-  eye: number;
-  hat: 'wide' | 'hood';
-  scarf: number;
-  height: number;
-};
-
-const SABLE: OutlawSpec = {
-  coat: 0x1c1e2e,
-  accent: PALETTE.cyan,
-  eye: PALETTE.cyan,
-  hat: 'wide',
-  scarf: PALETTE.rust,
-  height: 1,
-};
-
-const KOYOTE: OutlawSpec = {
-  coat: 0x5a3a2a,
-  accent: PALETTE.pink,
-  eye: PALETTE.pink,
-  hat: 'hood',
-  scarf: PALETTE.amber,
-  height: 0.94,
-};
-
 function mat(color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) {
   return new THREE.MeshStandardMaterial({color, roughness: 0.62, metalness: 0.18, flatShading: true, ...extra});
 }
 
 function glow(color: number, intensity = 2.4) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: intensity,
-    roughness: 0.4,
-    metalness: 0,
-  });
+  return new THREE.MeshStandardMaterial({color, emissive: color, emissiveIntensity: intensity, roughness: 0.4, metalness: 0});
 }
 
 function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y = 0, z = 0) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
   mesh.position.set(x, y, z);
-  mesh.castShadow = true;
   return mesh;
 }
 
-function buildOutlaw(spec: OutlawSpec): THREE.Group {
-  const g = new THREE.Group();
-  const coat = mat(spec.coat, {roughness: 0.82});
-  const skin = mat(0xa08872, {roughness: 0.7});
-  const chrome = mat(PALETTE.chrome, {metalness: 0.95, roughness: 0.22});
-  const accent = glow(spec.accent, 1.6);
-  const eye = glow(spec.eye, 4);
-  const s = spec.height;
+// ─── Holographic bounty cards ─────────────────────────────────────────────
 
-  // Legs + boots
-  for (const side of [-1, 1]) {
-    g.add(box(0.16, 0.5, 0.18, mat(0x141520), side * 0.12, 0.25 * s, 0));
-    g.add(box(0.18, 0.12, 0.26, mat(0x0c0c12), side * 0.12, 0.06, 0.03));
-    // spur glint
-    g.add(box(0.04, 0.04, 0.04, accent, side * 0.12, 0.12, -0.14));
+type CardSpec = {src: string; name: string; role: string; bounty: string; accent: number; spin: number; phase: number};
+
+const CARD_W = 1.05;
+const CARD_H = 2.1;
+
+function dossierTexture(spec: CardSpec): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d')!;
+  const accent = `#${spec.accent.toString(16).padStart(6, '0')}`;
+  ctx.fillStyle = '#0f0f17';
+  ctx.fillRect(0, 0, 512, 1024);
+  ctx.strokeStyle = 'rgba(125,207,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y < 1024; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
+  for (let x = 0; x < 512; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke(); }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = accent;
+  ctx.font = '600 22px "IBM Plex Mono", monospace';
+  ctx.fillText('SHINJUKU MESA // BOUNTY OFFICE', 256, 96);
+  ctx.fillStyle = '#c0caf5';
+  ctx.font = 'italic 900 150px "Barlow Condensed", Impact, sans-serif';
+  ctx.fillText('WANTED', 256, 260);
+  ctx.fillStyle = accent;
+  ctx.fillRect(64, 300, 384, 4);
+  ctx.font = 'italic 900 88px "Barlow Condensed", Impact, sans-serif';
+  ctx.fillStyle = '#c0caf5';
+  spec.name.split(' ').forEach((line, i) => ctx.fillText(line, 256, 420 + i * 90));
+  ctx.font = '500 24px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#8b93b8';
+  ctx.fillText(spec.role, 256, 620);
+  ctx.fillStyle = accent;
+  ctx.font = '600 26px "IBM Plex Mono", monospace';
+  ctx.fillText('REWARD', 256, 700);
+  ctx.fillStyle = '#e0af68';
+  ctx.font = 'italic 900 92px "Barlow Condensed", Impact, sans-serif';
+  ctx.fillText(spec.bounty, 256, 790);
+  let x = 72;
+  let seed = spec.name.length * 977;
+  while (x < 440) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const w = 2 + (seed % 7);
+    ctx.fillStyle = seed % 3 === 0 ? accent : '#c0caf5';
+    ctx.fillRect(x, 860, w, 90);
+    x += w + 3 + (seed % 5);
   }
-
-  // Torso + duster: tapered chest, then two split coat tails
-  g.add(box(0.44, 0.46, 0.26, coat, 0, 0.8 * s, 0));
-  const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.3, 6), coat);
-  chest.position.y = 0.6 * s;
-  g.add(chest);
-  for (const side of [-1, 1]) {
-    const tail = box(0.2, 0.5, 0.2, coat, side * 0.13, 0.32 * s, -0.04);
-    tail.rotation.z = side * -0.08;
-    tail.rotation.x = 0.12;
-    g.add(tail);
-  }
-  g.add(box(0.03, 0.44, 0.03, accent, 0, 0.34 * s, 0.13));
-  // neck
-  g.add(box(0.12, 0.08, 0.12, skin, 0, 1.08 * s, 0));
-  // belt + buckle
-  g.add(box(0.48, 0.06, 0.3, mat(0x2a1d16), 0, 0.53 * s, 0));
-  g.add(box(0.08, 0.06, 0.04, accent, 0, 0.53 * s, 0.16));
-  // shoulder plate (tech)
-  g.add(box(0.16, 0.08, 0.3, chrome, -0.3, 1.02 * s, 0));
-  g.add(box(0.14, 0.02, 0.2, accent, -0.3, 1.07 * s, 0));
-
-  // Arms: one flesh, one chrome
-  g.add(box(0.12, 0.48, 0.14, coat, 0.32, 0.76 * s, 0));
-  g.add(box(0.1, 0.12, 0.12, skin, 0.32, 0.48 * s, 0));
-  const chromeArm = box(0.12, 0.48, 0.14, chrome, -0.32, 0.76 * s, 0);
-  g.add(chromeArm);
-  g.add(box(0.13, 0.03, 0.15, accent, -0.32, 0.7 * s, 0));
-  g.add(box(0.1, 0.12, 0.12, chrome, -0.32, 0.48 * s, 0));
-
-  // Rifle slung on back
-  const rifle = box(0.06, 1.0, 0.06, mat(0x0d0d14, {metalness: 0.6, roughness: 0.4}), 0.1, 0.9 * s, -0.2);
-  rifle.rotation.z = -0.35;
-  g.add(rifle);
-  g.add(box(0.03, 0.12, 0.03, accent, 0.05, 1.28 * s, -0.2));
-
-  // Scarf
-  g.add(box(0.42, 0.11, 0.36, mat(spec.scarf, {roughness: 0.9}), 0, 1.13 * s, 0.02));
-
-  // Head
-  g.add(box(0.25, 0.28, 0.25, skin, 0, 1.28 * s, 0));
-  // eyes: one glowing implant, one dim
-  g.add(box(0.07, 0.05, 0.02, eye, 0.07, 1.31 * s, 0.15));
-  g.add(box(0.06, 0.04, 0.02, mat(0x1a1a24), -0.07, 1.31 * s, 0.15));
-  // jaw implant line
-  g.add(box(0.2, 0.015, 0.02, accent, 0, 1.19 * s, 0.15));
-
-  if (spec.hat === 'wide') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.44, 0.025, 16), mat(0x08080c, {roughness: 0.9}));
-    brim.position.y = 1.44 * s;
-    g.add(brim);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.21, 0.26, 10), mat(0x08080c, {roughness: 0.9}));
-    crown.position.y = 1.56 * s;
-    g.add(crown);
-    g.add(box(0.3, 0.018, 0.3, accent, 0, 1.455 * s, 0));
-  } else {
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.34, 6), mat(spec.coat, {roughness: 0.95}));
-    hood.position.y = 1.5 * s;
-    g.add(hood);
-    // synthetic coyote snout
-    g.add(box(0.14, 0.1, 0.16, chrome, 0, 1.23 * s, 0.18));
-    g.add(box(0.1, 0.02, 0.04, eye, 0, 1.2 * s, 0.27));
-    // tapered antenna ears
-    for (const side of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 4), chrome);
-      ear.position.set(side * 0.15, 1.7 * s, 0);
-      ear.rotation.z = side * -0.25;
-      g.add(ear);
-      g.add(box(0.05, 0.03, 0.05, eye, side * 0.17, 1.82 * s, 0));
-    }
-    // poncho
-    const poncho = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.46, 6, 1, true), mat(spec.coat, {roughness: 0.95}));
-    poncho.position.y = 0.88 * s;
-    g.add(poncho);
-    g.add(box(0.64, 0.02, 0.02, accent, 0, 0.66 * s, 0.4));
-  }
-
-  return g;
+  ctx.fillStyle = '#565f89';
+  ctx.font = '500 18px "IBM Plex Mono", monospace';
+  ctx.fillText('DEAD OR ALIVE  ·  LAST CALL GAMES  ·  2086', 256, 990);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
+
+function buildHoloCard(front: THREE.Texture, spec: CardSpec): {group: THREE.Group; material: THREE.ShaderMaterial} {
+  const group = new THREE.Group();
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    uniforms: {
+      uFront: {value: front},
+      uBack: {value: dossierTexture(spec)},
+      uTime: {value: 0},
+      uFlicker: {value: 0},
+      uAccent: {value: new THREE.Color(spec.accent)},
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        vec3 p = position;
+        p.z += (1.0 - pow(uv.x * 2.0 - 1.0, 2.0)) * 0.09;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: `
+      uniform sampler2D uFront; uniform sampler2D uBack; uniform float uTime; uniform float uFlicker; uniform vec3 uAccent;
+      varying vec2 vUv;
+      void main(){
+        vec2 uv = vUv;
+        bool front = gl_FrontFacing;
+        vec2 suv = front ? uv : vec2(1.0 - uv.x, uv.y);
+        float ca = 0.003 + 0.004 * uFlicker;
+        vec3 col;
+        if (front) {
+          col.r = texture2D(uFront, suv + vec2(ca, 0.0)).r;
+          col.g = texture2D(uFront, suv).g;
+          col.b = texture2D(uFront, suv - vec2(ca, 0.0)).b;
+          col *= 1.08;
+        } else {
+          col = texture2D(uBack, suv).rgb;
+        }
+        float scan = 0.88 + 0.12 * sin(uv.y * 260.0 - uTime * 7.0);
+        float roll = fract(uv.y * 0.6 - uTime * 0.09);
+        float band = 1.0 + 0.22 * (1.0 - smoothstep(0.0, 0.06, abs(roll - 0.5)));
+        col *= scan * band;
+        col = mix(col, col * (0.7 + 0.5 * uAccent), 0.18);
+        float edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+        float frame = 1.0 - smoothstep(0.0, 0.014, edge);
+        float inner = smoothstep(0.014, 0.024, edge) * (1.0 - smoothstep(0.024, 0.036, edge));
+        col = mix(col, uAccent * 1.9, frame);
+        col += uAccent * inner * 0.7;
+        float alpha = (0.94 - 0.18 * uFlicker) * smoothstep(0.0, 0.05, uv.y);
+        gl_FragColor = vec4(col, alpha);
+      }`,
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W, CARD_H, 24, 2), material);
+  plane.position.y = 0.55 + CARD_H / 2;
+  group.add(plane);
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(CARD_W * 0.42, 0.72, 0.56, 24, 1, true),
+    new THREE.MeshBasicMaterial({color: spec.accent, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending}),
+  );
+  beam.position.y = 0.3;
+  group.add(beam);
+  const beamCore = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.14, 0.56, 12, 1, true),
+    new THREE.MeshBasicMaterial({color: spec.accent, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending}),
+  );
+  beamCore.position.y = 0.3;
+  group.add(beamCore);
+  const light = new THREE.PointLight(spec.accent, 4, 3.5, 1.8);
+  light.position.set(0, 1.4, 0.4);
+  group.add(light);
+  return {group, material};
+}
+
+const CARDS: CardSpec[] = [
+  {src: '/art/sable-reyes.jpg', name: 'SABLE REYES', role: 'RAIL MARSHAL // EX-CORP', bounty: '¢1,200,000', accent: PALETTE.cyan, spin: 0.26, phase: 0.4},
+  {src: '/art/koyote.jpg', name: 'K-0Y0TE', role: 'SYNTHETIC DRIFTER', bounty: '¢850,000', accent: PALETTE.pink, spin: -0.21, phase: 2.3},
+];
 
 function buildTurntable(color: number): THREE.Group {
   const g = new THREE.Group();
@@ -415,18 +420,26 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
 
     const sableTable = buildTurntable(PALETTE.cyan);
     sableTable.position.set(-1.2, 0, 0.1);
-    const sable = buildOutlaw(SABLE);
-    sable.position.y = 0.03;
-    sableTable.add(sable);
     stage.add(sableTable);
-
     const koyoteTable = buildTurntable(PALETTE.pink);
     koyoteTable.position.set(1.25, 0, 0.25);
-    const koyote = buildOutlaw(KOYOTE);
-    koyote.position.y = 0.03;
-    koyote.rotation.y = Math.PI * 0.6;
-    koyoteTable.add(koyote);
     stage.add(koyoteTable);
+    const tables = [sableTable, koyoteTable];
+    const cards: {group: THREE.Group; material: THREE.ShaderMaterial; spec: CardSpec}[] = [];
+    let disposed = false;
+    const loader = new THREE.TextureLoader();
+    Promise.all(CARDS.map(spec => loader.loadAsync(spec.src).catch(() => null))).then(textures => {
+      if (disposed) return;
+      textures.forEach((texture, i) => {
+        if (!texture) return;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        const card = buildHoloCard(texture, CARDS[i]);
+        card.group.rotation.y = CARDS[i].phase;
+        tables[i].add(card.group);
+        cards.push({...card, spec: CARDS[i]});
+      });
+    });
     scene.add(stage);
 
     const composer = new EffectComposer(renderer);
@@ -443,21 +456,19 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
       camera.updateProjectionMatrix();
       const wide = camera.aspect > 1.15;
       if (wide) {
-        // Copy owns the left ~55%; the pair sits on a diagonal to the right.
         stage.position.set(4.6, 0, 0);
         stage.scale.setScalar(1);
-        sableTable.position.set(-1.05, 0, 0.55);
-        koyoteTable.position.set(1.15, 0, -0.25);
-        camera.position.set(0.8, 1.6, 6.6);
-        camera.lookAt(3.0, 1.05, 0);
+        sableTable.position.set(-1.1, 0, 0.5);
+        koyoteTable.position.set(1.2, 0, -0.3);
+        camera.position.set(0.8, 1.9, 7.0);
+        camera.lookAt(3.0, 1.45, 0);
       } else {
-        // Narrow: compact pair framed in the band above the copy.
         stage.position.set(0, 0, -4);
-        stage.scale.setScalar(0.7);
-        sableTable.position.set(-0.85, 0, 0.2);
-        koyoteTable.position.set(0.85, 0, -0.1);
-        camera.position.set(0, 1.6, 4.5);
-        camera.lookAt(0, 0.15, -4);
+        stage.scale.setScalar(0.56);
+        sableTable.position.set(-0.95, 0, 0.2);
+        koyoteTable.position.set(0.95, 0, -0.1);
+        camera.position.set(0, 2.0, 4.4);
+        camera.lookAt(0, 0.05, -4);
       }
     };
     resize();
@@ -483,10 +494,14 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
       const t = clock.elapsedTime;
 
       if (!reduceMotion) {
-        sable.rotation.y += dt * 0.28;
-        koyote.rotation.y -= dt * 0.22;
-        sable.position.y = 0.03 + Math.sin(t * 1.4) * 0.012;
-        koyote.position.y = 0.03 + Math.sin(t * 1.4 + 1.7) * 0.012;
+        for (const card of cards) {
+          card.group.rotation.y += dt * card.spec.spin;
+          card.group.position.y = Math.sin(t * 1.1 + card.spec.phase) * 0.03;
+          card.material.uniforms.uTime.value = t;
+          const f = card.material.uniforms.uFlicker;
+          f.value = Math.max(0, f.value - dt * 6);
+          if (Math.random() > 0.992) f.value = 0.6 + Math.random() * 0.4;
+        }
         (ground.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
         cactus.children.forEach((c, i) => {
           const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -525,6 +540,7 @@ export default function HeroScene({onReady}: {onReady?: () => void}) {
     tick();
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
       io.disconnect();
