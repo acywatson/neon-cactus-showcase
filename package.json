@@ -14,9 +14,11 @@
     "@astryxdesign/core": "0.6.2",
     "@astryxdesign/theme-neutral": "0.6.2",
     "@stylexjs/stylex": "0.19.1",
+    "@types/three": "^0.170.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.6.2",

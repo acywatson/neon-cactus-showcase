@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {lazy, Suspense, useCallback, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Link} from '@astryxdesign/core/Link';
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import {DemoStage} from './components/DemoStage';
 import {LobbyDialog} from './components/LobbyDialog';
+
+const HeroScene = lazy(() => import('./components/HeroScene'));
 
 const bounties = [
   {
@@ -54,6 +56,8 @@ const worldFacts = [
 
 export function App() {
   const [isLobbyOpen, setIsLobbyOpen] = useState(false);
+  const [isSceneLive, setIsSceneLive] = useState(false);
+  const handleSceneReady = useCallback(() => setIsSceneLive(true), []);
 
   const scrollToDemo = () => {
     document.getElementById('demo')?.scrollIntoView({behavior: 'smooth'});
@@ -88,13 +92,16 @@ export function App() {
 
       <main id="main-content">
         <section id="top" className="hero-section" aria-labelledby="hero-title">
-          <figure className="hero-backdrop">
+          <figure className={isSceneLive ? 'hero-backdrop is-live' : 'hero-backdrop'}>
             <img
               src="/art/neon-cactus-key-art.jpg"
               alt="Two cybernetic outlaws approach the glowing Neon Cactus saloon in a rain-soaked desert town."
             />
+            <Suspense fallback={null}>
+              <HeroScene onReady={handleSceneReady} />
+            </Suspense>
             <figcaption className="visually-hidden">
-              Welcome to Shinjuku Mesa, where the sun never rises and every outlaw carries a bounty.
+              Welcome to Shinjuku Mesa, where the sun never rises and every outlaw carries a bounty. Sable Reyes and K-0Y0TE stand beneath the Neon Cactus sign as rain falls over the skyline.
             </figcaption>
           </figure>
 
