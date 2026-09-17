@@ -59,8 +59,8 @@ export function DemoStage(_: DemoProps) {
   const fire = useCallback(() => {
     if (!runningRef.current || bulletsRef.current.length > 6) return;
     const player = playerRef.current;
-    const x = player.x + 48;
-    const y = player.y - 72;
+    const x = player.x + 52;
+    const y = player.y - 76;
     bulletsRef.current.push({x, y, px: x});
     player.flash = 4;
     player.recoil = 2;

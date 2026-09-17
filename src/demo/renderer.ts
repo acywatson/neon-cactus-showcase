@@ -71,8 +71,8 @@ export type FrameState = {
 
 const ART = {
   K: '#0b0b12', // outline
-  C: '#262a45', // coat
-  c: '#3a4066', // coat highlight
+  C: '#1f2238', // coat
+  c: '#2f3556', // coat highlight
   S: '#c9a27e', // skin
   s: '#9a7358', // skin shadow
   H: '#1c1c2a', // hat
@@ -89,39 +89,91 @@ const ART = {
   P: '#ff007c', // pink glow
   A: '#e0af68', // amber
   Y: '#fff6d6', // hot white
+  r: '#c96f3f', // scarf shadow
+  T: '#6f8ac2', // cyan-ish coat trim (dim)
+  N: '#141826', // coat deepest shadow
 } as const;
 
 type ArtKey = keyof typeof ART;
 const GLOW_KEYS = new Set<ArtKey>(['E', 'P', 'A', 'Y']);
 
 const PLAYER_TOP = [
-  '......HHHH......',
-  '.....HhHHHH.....',
-  '.....HHHHHH.....',
-  '..HHHHHHHHHHHH..',
-  '...HHHHHHHHHH...',
-  '.....SSSSSS.....',
-  '.....SSsEES.....',
-  '.....sSSSSs.....',
-  '....RRRRRRRR....',
-  '...RRCCCCCCRR...',
-  '..CCCCCCCCCCMM..',
-  '..CcCCCCCCCCMGGG',
-  '..CcCCCCCCCCmGGG',
-  '..CcCCCCCCCCm...',
-  '..CECCCCCCCC....',
-  '..CECCCCcCCC....',
-  '..CECCCC.CCC....',
-  '..CcCCC...CCC...',
-  '..CCCC.....CCC..',
+  '.........HHHHHHH........',
+  '........HhhHHHHHH.......',
+  '........HhHHHHHHH.......',
+  '........HHHHHHHHH.......',
+  '........HHHHHHHHH.......',
+  '...HHHHHHHHHHHHHHHHHH...',
+  '..HHHHHHHHHHHHHHHHHHHH..',
+  '..HHHHHHHHHHHHHHHHHHHH..',
+  '....KKKKKHHHHHHKKKKK....',
+  '.........SSSSSS.........',
+  '........SSSSSSSs........',
+  '........SSKEESSs........',
+  '........SSSSSSSs........',
+  '.........sSSSSs.........',
+  '..........sKKs..........',
+  '........RRRRRRRR........',
+  '.......RRrRRRRrRR.......',
+  '......RCCCCCCCCCCr......',
+  '.....CCCCCCCCCCCCCC.....',
+  '....CcCCCCCCCCCCCCCMM...',
+  '....CcCCCCCCCCCCCCCMMGGG',
+  '....CcCCCTCCCCCCCCmMGGGG',
+  '....CcCCCTCCCCCCCCmM.GG.',
+  '....CcCCCTCCCCCCCCm.....',
+  '....CcCCCTCCCCCCCC......',
+  '....CcCCCCCCCCCCCC......',
+  '....CcCCCCCCCCNCCC......',
+  '....CcCCCCCCCCNCCC......',
+  '....CcCCCCCCC.NCCC......',
+  '....CcCCCCCC..NCCC......',
+  '....CcCCCCC...NNCCC.....',
+  '....CCCCC......NCCC.....',
+  '....CCCC........CCC.....',
 ];
 
 const LEGS = {
-  stand: ['...LLL....LLL...', '...LLL....LLL...', '...LLL....LLL...', '..BBBB....BBBB..', '..BBBB....BBBB..'],
-  run0: ['..LLL......LLL..', '.LLL........LLL.', '.LLL........LLL.', 'BBBB........BBBB', 'BBBB........BBBB'],
-  run1: ['....LLL..LLL....', '....LLL..LLL....', '.....LLLLLL.....', '....BBBBBBBB....', '....BBBBBBBB....'],
-  run2: ['...LLL....LLL...', '..LLL......LLL..', '..LLL......LLL..', '.BBBB......BBBB.', '.BBBB......BBBB.'],
-  jump: ['....LLL...LLL...', '...LLL....LLL...', '...LLL.....LLL..', '..BBBB....BBBB..', '................'],
+  stand: [
+    '.......LLL.....LLL......',
+    '.......LLL.....LLL......',
+    '.......LLL.....LLL......',
+    '.......LLL.....LLL......',
+    '......BBBB.....BBBB.....',
+    '......BBBB.....BBBB.....',
+  ],
+  run0: [
+    '......LLL.........LLL...',
+    '.....LLL...........LLL..',
+    '....LLL.............LLL.',
+    '....LLL.............LLL.',
+    '...BBBB.............BBBB',
+    '...BBBB.............BBBB',
+  ],
+  run1: [
+    '........LLL...LLL.......',
+    '........LLL...LLL.......',
+    '.........LLLLLLL........',
+    '.........LLLLLLL........',
+    '........BBBBBBBB........',
+    '........BBBBBBBB........',
+  ],
+  run2: [
+    '.......LLL.....LLL......',
+    '......LLL.......LLL.....',
+    '.....LLL.........LLL....',
+    '.....LLL.........LLL....',
+    '....BBBB.........BBBB...',
+    '....BBBB.........BBBB...',
+  ],
+  jump: [
+    '........LLL....LLL......',
+    '.......LLL.....LLL......',
+    '.......LLL......LLL.....',
+    '......BBBB......BBBB....',
+    '......BBBB......BBBB....',
+    '........................',
+  ],
 };
 
 const DRONE_FRAMES = [
@@ -437,6 +489,15 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
 
   const particles: Particle[] = [];
   const rings: Ring[] = [];
+  type Car = {x: number; y: number; speed: number; color: string; len: number};
+  const traffic: Car[] = Array.from({length: 9}, (_, i) => ({
+    x: Math.random() * LOW_W,
+    y: 120 + (i % 4) * 14 + Math.random() * 6,
+    speed: (i % 2 === 0 ? 1 : -1) * (14 + Math.random() * 22),
+    color: i % 3 === 0 ? '#ff5aa7' : i % 3 === 1 ? '#ffd9a0' : '#7dcfff',
+    len: 3 + Math.floor(Math.random() * 4),
+  }));
+  const fgRain = Array.from({length: 26}, () => ({x: Math.random() * LOW_W, y: Math.random() * LOW_H, len: 18 + Math.random() * 16, speed: 420 + Math.random() * 160}));
   let shakePower = 0;
   let breachFlash = 0;
   let saloonDamage = 0;
@@ -530,12 +591,20 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
     ctx.fillRect(x0 + 6, top + 2, w - 14, 14);
     ctx.font = 'bold 10px "IBM Plex Mono", monospace';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = flicker < 1 ? '#7a3a5a' : p.pink;
-    ctx.fillText('LAST CALL', x0 + 14, top + 9);
+    const dead = Math.sin(t * 0.0021) > 0.985 ? 2 : -1; // the 'S' dies now and then
+    let lx = x0 + 14;
+    ctx.textAlign = 'start';
+    for (let i = 0; i < 'LAST CALL'.length; i++) {
+      const ch = 'LAST CALL'[i];
+      ctx.fillStyle = i === dead ? '#4a2238' : flicker < 1 ? '#7a3a5a' : p.pink;
+      ctx.fillText(ch, lx, top + 9);
+      lx += ctx.measureText(ch).width;
+    }
     glow.font = ctx.font;
     glow.textBaseline = 'middle';
     glow.fillStyle = p.pink;
     glow.globalAlpha = flicker;
+    glow.textAlign = 'start';
     glow.fillText('LAST CALL', x0 + 14, top + 9);
     glow.globalAlpha = 1;
     // neon cactus sign on the roof
@@ -561,38 +630,57 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
   }
 
   function drawPlayer(pl: PlayerState, t: number) {
-    const scale = 3;
+    const scale = 2;
+    const rows = [...PLAYER_TOP, ...(pl.y < FLOOR - 0.5 ? LEGS.jump : pl.moving ? [LEGS.run0, LEGS.run1, LEGS.run2, LEGS.run1][Math.floor(pl.runPhase) % 4] : LEGS.stand)];
+    const spriteH = rows.length * scale;
     const px = Math.round(pl.x * S) - 24;
-    const py = Math.round(pl.y * S) - 72;
+    const py = Math.round(pl.y * S) - spriteH;
     const airborne = pl.y < FLOOR - 0.5;
-    let legs = LEGS.stand;
-    let bob = 0;
-    if (airborne) legs = LEGS.jump;
-    else if (pl.moving) {
-      const f = Math.floor(pl.runPhase) % 4;
-      legs = [LEGS.run0, LEGS.run1, LEGS.run2, LEGS.run1][f];
-      bob = f % 2 === 1 ? 1 : 0;
-    }
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    const bob = !airborne && pl.moving && Math.floor(pl.runPhase) % 2 === 1 ? 1 : 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
-    ctx.ellipse(px + 24, FLOOR_LOW + 1, airborne ? 12 : 18, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(px + 24, FLOOR_LOW + 1, airborne ? 12 : 17, 3, 0, 0, Math.PI * 2);
     ctx.fill();
-    const rows = [...PLAYER_TOP, ...legs];
     const recoil = Math.round(pl.recoil);
-    ctx.drawImage(sprite('player-body', rows, scale), px - recoil, py + bob);
-    glow.drawImage(sprite('player-body', rows, scale, true), px - recoil, py + bob);
+    const key = `player-${airborne ? 'j' : pl.moving ? Math.floor(pl.runPhase) % 4 : 's'}`;
+    const body = sprite(key, rows, scale);
+    // rim light from the city (right side, cyan) — draw tinted copy offset by 1px
+    ctx.drawImage(body, px - recoil, py + bob);
+    // 1px cyan rim on the right (city-lit) edge only
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = p.cyan;
+    const bc = body.getContext('2d')!;
+    const img = bc.getImageData(0, 0, body.width, body.height).data;
+    for (let y = 0; y < body.height; y += 2) {
+      for (let x = body.width - 1; x >= 0; x--) {
+        if (img[(y * body.width + x) * 4 + 3] > 0) { ctx.fillRect(px - recoil + x, py + bob + y, 1, 2); break; }
+      }
+    }
+    ctx.restore();
+    glow.drawImage(sprite(key, rows, scale, true), px - recoil, py + bob);
+    // implant eye pulse
+    glow.fillStyle = p.cyan;
+    glow.globalAlpha = 0.6 + 0.4 * Math.sin(t * 0.006);
+    glow.fillRect(px - recoil + 22, py + bob + 18, 6, 3);
+    glow.globalAlpha = 1;
     if (pl.flash > 0) {
       const frame = MUZZLE[pl.flash % 2];
-      const mx = px + 46;
-      const my = py + 30 + bob;
+      const mx = px + 48;
+      const my = py + 34 + bob;
       ctx.drawImage(sprite(`muzzle-${pl.flash % 2}`, frame, 3), mx, my);
       glow.drawImage(sprite(`muzzle-${pl.flash % 2}`, frame, 3, true), mx - 2, my - 2);
-      // muzzle light on the ground
-      glow.fillStyle = 'rgba(224,175,104,0.35)';
-      glow.fillRect(px, FLOOR_LOW - 2, 90, 3);
+      glow.fillStyle = 'rgba(224,175,104,0.4)';
+      glow.fillRect(px, FLOOR_LOW - 2, 100, 3);
+      // flash lights the player's front
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = p.amber;
+      ctx.fillRect(px + 20, py + 12, 28, spriteH - 14);
+      ctx.restore();
     }
-    void t;
   }
 
   function drawDrone(d: DroneState, t: number) {
@@ -702,6 +790,37 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
       if (d.x > LOW_W) d.x -= LOW_W;
       ctx.moveTo(d.x, d.y);
       ctx.lineTo(d.x - 1, d.y - d.len);
+    }
+    ctx.stroke();
+  }
+
+  function drawTraffic(dt: number) {
+    for (const c of traffic) {
+      c.x += c.speed * dt;
+      if (c.x < -10) c.x = LOW_W + 10;
+      if (c.x > LOW_W + 10) c.x = -10;
+      ctx.fillStyle = c.color;
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(Math.round(c.x), Math.round(c.y), c.len, 1);
+      glow.fillStyle = c.color;
+      glow.globalAlpha = 0.5;
+      glow.fillRect(Math.round(c.x) - 1, Math.round(c.y) - 1, c.len + 2, 3);
+    }
+    ctx.globalAlpha = 1;
+    glow.globalAlpha = 1;
+  }
+
+  function drawForegroundRain(dt: number) {
+    ctx.strokeStyle = 'rgba(200, 230, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const d of fgRain) {
+      d.y += d.speed * dt;
+      d.x += 60 * dt;
+      if (d.y > LOW_H + 20) { d.y = -30 - Math.random() * 40; d.x = Math.random() * LOW_W; }
+      if (d.x > LOW_W + 10) d.x -= LOW_W + 20;
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x - 3, d.y - d.len);
     }
     ctx.stroke();
   }
@@ -823,6 +942,7 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
       glow.globalAlpha = 0.35;
       drawTiledOn(glow, city, scroll * 9, 0);
       glow.globalAlpha = 1;
+      drawTraffic(dt);
       drawTiled(mid, scroll * 22, 0);
       drawTiled(ground, scroll * 60, FLOOR_LOW);
       drawPuddles(time, scroll * 60);
@@ -833,6 +953,7 @@ export function createRenderer(display: HTMLCanvasElement, p: Palette): Renderer
       drawBullets(state.bullets);
       updateParticles(dt);
       drawRain(dt);
+      drawForegroundRain(dt);
 
       // atmosphere: pink haze on the right where the posse rides in
       const haze = ctx.createLinearGradient(LOW_W - 140, 0, LOW_W, 0);
